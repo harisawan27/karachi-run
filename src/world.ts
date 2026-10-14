@@ -11,6 +11,8 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import { CityRoute } from './city-route';
 
 export type ObstacleKind = 'bus' | 'barrier' | 'arch' | 'rickshaw';
 type Parent = TransformNode | null;
@@ -23,7 +25,7 @@ const signTexts = [
 ];
 export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
-  chunks: TransformNode[] = []; runner: Character; pursuer: Character; landmark: TransformNode; time=0; mode='menu'; speed=0; low=false;
+  chunks: TransformNode[] = []; runner: Character; pursuer: Character; landmark: TransformNode; skyline:TransformNode|null=null; city:CityRoute; travel=0;time=0; mode='menu'; speed=0; low=false;
   constructor(public canvas:HTMLCanvasElement) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
     this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
@@ -39,6 +41,7 @@ export class KarachiWorld {
     this.landmark=this.makeMazar();
     this.runner=new Character(this,false);this.runner.root.position.set(0,0,0);
     this.pursuer=new Character(this,true);this.pursuer.root.position.set(0,0,-6);
+    this.city=new CityRoute(this);this.city.update(0,0);
     window.addEventListener('resize',()=>this.engine.resize());
     this.scene.skipPointerMovePicking=true;
   }
@@ -75,6 +78,7 @@ export class KarachiWorld {
       this.box('gutter',.15,.04,410,side*6.48,.01,120,'dark');
     }
     const far=new TransformNode('distant Karachi skyline',this.scene);
+    this.skyline=far;
     for(let i=0;i<28;i++){const side=i%2?1:-1;const x=side*(11+(i%7)*4.8);const y=8+(i*7%13);this.box('city silhouette',4,y,5,x,y/2,148+(i%4)*9,i%3?'sand':'cream',far);this.box('rooftop silhouette',1.7,2,1.7,x,y+1,148+(i%4)*9,'cream',far);}
     this.merge(far);
     const sun=this.ball('afternoon sun',13,-38,58,165,'#ffeed0');const sm=this.mat('sun','#ffeed0');sm.unfreeze();sm.emissiveColor=Color3.FromHexString('#ffeed0');sm.disableLighting=true;sm.freeze();sun.material=sm;
@@ -202,33 +206,46 @@ export class KarachiWorld {
     const inset=this.cyl('coin inset',.44,.113,0,0,0,'#f1ac30',root,undefined,16);inset.rotation.x=Math.PI/2;
     this.box('coin stamp',.085,.28,.13,0,0,0,'white',root);this.merge(root);return root;
   }
-  power(kind:'magnet'|'shield') {
+  power(kind:'magnet'|'boost') {
     const root=new TransformNode(kind,this.scene);
-    const orb=this.ball('power orb',.88,0,0,0,kind==='magnet'?'red':'teal',root);orb.visibility=.8;
-    if(kind==='magnet'){for(const x of [-.2,.2]){this.box('magnet arm',.17,.48,.18,x,.05,-.4,'white',root);this.box('magnet tip',.18,.12,.19,x,.31,-.4,'blue',root);}this.box('magnet base',.57,.16,.18,0,-.23,-.4,'white',root);}else{const shield=this.ball('shield icon',.5,0,0,-.4,'white',root);shield.scaling.set(.75,1.1,.25);}
+    if(kind==='magnet'){
+      const path=[new Vector3(-.38,.55,0),new Vector3(-.38,-.02,0)];
+      for(let i=0;i<=12;i++){const a=Math.PI+i*Math.PI/12;path.push(new Vector3(Math.cos(a)*.38,-.02+Math.sin(a)*.38,0));}
+      path.push(new Vector3(.38,.55,0));const magnet=MeshBuilder.CreateTube('red horseshoe magnet',{path,radius:.14,tessellation:10},this.scene);magnet.material=this.mat('red');magnet.parent=root;
+      for(const x of [-.38,.38])this.cyl('silver magnet pole',.29,.23,x,.54,0,'white',root);
+    }else{
+      const tile=this.box('double points bonus',.82,.82,.2,0,0,0,'yellow',root);tile.rotation.z=Math.PI/4;
+      const tex=new DynamicTexture('double score label',{width:128,height:128},this.scene,false);tex.drawText('×2',null,87,'bold 65px Arial','#214d43','#ffd260',true);const m=new StandardMaterial('double points type',this.scene);m.diffuseTexture=tex;m.emissiveColor=new Color3(.3,.3,.3);const face=MeshBuilder.CreatePlane('x2',{size:.69},this.scene);face.position.z=-.12;face.material=m;face.parent=root;
+    }
     this.merge(root);return root;
   }
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
-    this.time+=dt;
+    this.time+=dt;this.travel+=distanceDelta;
     for(const c of this.chunks){c.position.z-=distanceDelta;if(c.position.z< -48)c.position.z+=216;}
-    this.runner.animate(this.time,playing,playerY,sliding);
-    this.pursuer.animate(this.time+.15,playing,0,false);
-    const desired=playing?new Vector3(this.runner.root.position.x*.18,5.2,-10.5):new Vector3(-4.1,7,-14);
+    this.city.update(this.travel,this.time);
+    const running=this.mode==='running',caught=this.mode==='crashed'||this.mode==='over';
+    this.runner.animate(this.time,running,playerY,sliding);
+    this.pursuer.animate(this.time+.15,running,0,false);
+    this.runner.root.rotation.y+=(playing&&!caught?0:Math.PI-this.runner.root.rotation.y)*(playing&&!caught?0:Math.min(1,dt*6));
+    if(running)this.runner.root.rotation.y*=Math.exp(-dt*9);
+    this.pursuer.root.rotation.y=caught||!playing?Math.PI:0;
+    this.pursuer.root.position.z+=((caught?-1.6:playing?-3.6:-2)-this.pursuer.root.position.z)*Math.min(1,dt*4);
+    const desired=playing?new Vector3(this.runner.root.position.x*.13,6.2,-13):new Vector3(-4.1,7,-14);
     const factor=1-Math.exp(-dt*4);this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const target=playing?new Vector3(this.runner.root.position.x*.12,1.65,18):new Vector3(1,1.8,27);
+    const target=playing?new Vector3(this.runner.root.position.x*.08,1.35,17):new Vector3(1,1.8,27);
     this.camera.setTarget(target);this.camera.fov=innerWidth<700?.98:.87;
-    this.pursuer.root.position.x+=(this.runner.root.position.x-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
+    this.pursuer.root.position.x+=(this.runner.root.position.x-1.15-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
   }
 }
 export class Character {
   root:TransformNode;body:TransformNode;legs:TransformNode[]=[];arms:TransformNode[]=[];shadow:Mesh;
   constructor(w:KarachiWorld,police:boolean) {
     this.root=new TransformNode(police?'Asim pursuer':'Imran runner',w.scene);this.body=new TransformNode('character body',w.scene);this.body.parent=this.root;
-    const cloth=police?'uniform':'#dedcc7';const hair=police?'#33342e':'#393a32';
+    const cloth=police?'#b69d6c':'#f1ead5';const hair=police?'#272e28':'#45433a';
     const torso=w.cyl('kurta torso',.73,.99,0,1.34,0,cloth,this.body,.83);torso.scaling.z=.67;
     if(!police){w.box('waistcoat back',.79,.72,.08,0,1.45,-.28,'#41624b',this.body);for(const x of [-.21,.21])w.box('waistcoat front',.32,.74,.11,x,1.45,.23,'#41624b',this.body);w.box('kurta hem',.77,.35,.54,0,.91,0,cloth,this.body);}
-    else{w.box('uniform belt',.77,.095,.52,0,.99,0,'dark',this.body);w.box('belt buckle',.13,.095,.04,0,.99,-.28,'yellow',this.body);for(const x of [-.26,.26])w.box('epaulette',.17,.06,.38,x,1.85,0,'yellow',this.body);}
+    else{w.box('uniform belt',.77,.095,.52,0,.99,0,'dark',this.body);w.box('belt buckle',.13,.095,.04,0,.99,-.28,'yellow',this.body);for(const x of [-.26,.26]){w.box('epaulette',.17,.06,.38,x,1.85,0,'yellow',this.body);w.box('red collar tab',.1,.19,.05,x*.65,1.75,.26,'red',this.body);}w.box('service ribbons',.22,.13,.035,-.21,1.53,.28,'green',this.body);}
     w.cyl('neck',.26,.22,0,1.94,0,'skin',this.body);
     const head=w.ball('head',.57,0,2.22,.01,'skin',this.body);head.scaling.set(.86,1.14,.88);
     const cap=w.ball('hair',.58,0,2.4,-.035,hair,this.body);cap.scaling.set(.87,.64,.93);
@@ -237,9 +254,14 @@ export class Character {
     w.ball('nose',.115,0,2.18,.27,'skin',this.body);
     for(const x of [-.115,.115]){w.ball('eyes',.038,x,2.27,.25,'dark',this.body);w.box('eyebrow',.09,.022,.04,x,2.32,.25,hair,this.body);}
     if(police){w.box('moustache',.21,.065,.04,0,2.08,.252,'dark',this.body);const hat=w.cyl('officer cap',.63,.14,0,2.56,0,'uniform',this.body);hat.scaling.z=.9;w.box('cap visor',.49,.045,.3,0,2.51,.24,'dark',this.body);w.box('cap badge',.09,.08,.025,0,2.58,.285,'yellow',this.body);}
+    if(!police){for(const side of [-1,1]){const temple=w.ball('graying swept hair',.22,side*.23,2.34,-.06,'#807c6e',this.body);temple.scaling.set(.45,.8,1);}for(let i=0;i<3;i++){const sweep=w.ball('swept hair',.29,-.13+i*.12,2.48,.015-i*.07,hair,this.body);sweep.scaling.set(1.15,.6,1.3);}for(let i=0;i<4;i++)w.ball('waistcoat button',.044,.05,1.16+i*.17,.296,'yellow',this.body);}
+    const portrait=new Texture(police?'/characters/asim-munir.png':'/characters/imran-khan.png',w.scene);portrait.hasAlpha=true;
+    const faceMat=new StandardMaterial('recognizable '+(police?'Asim Munir':'Imran Khan')+' face',w.scene);faceMat.diffuseTexture=portrait;faceMat.useAlphaFromDiffuseTexture=true;faceMat.emissiveColor=new Color3(.32,.32,.32);faceMat.specularColor=Color3.Black();
+    const face=MeshBuilder.CreatePlane('character face artwork',{width:police?.75:.68,height:police?.9:.87},w.scene);face.position.set(0,2.29,.305);face.rotation.y=Math.PI;face.parent=this.body;face.material=faceMat;
+    const u0=police?.24:.255,u1=police?.76:.735,v0=police?.355:.445,v1=.99;face.setVerticesData(VertexBuffer.UVKind,[u0,v0,u1,v0,u1,v1,u0,v1]);
     for(const side of [-1,1]){
       const leg=new TransformNode('leg pivot',w.scene);leg.parent=this.body;leg.position.set(side*.23,.95,0);this.legs.push(leg);
-      w.cyl('shalwar',.31,.76,0,-.38,0,police?'uniform':'trouser',leg,.28);
+      w.cyl('shalwar',.31,.76,0,-.38,0,police?cloth:'trouser',leg,.28);
       w.box('shoe',.32,.19,.52,0,-.81,.075,'#443e33',leg);
       const arm=new TransformNode('arm pivot',w.scene);arm.parent=this.body;arm.position.set(side*.45,1.72,0);this.arms.push(arm);
       const sleeve=w.cyl('sleeve',.235,.58,side*.045,-.28,0,cloth,arm,.27);sleeve.rotation.z=side*.14;
