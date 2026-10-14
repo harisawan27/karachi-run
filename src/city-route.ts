@@ -5,7 +5,8 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { KarachiWorld } from './world';
-import { ROUTES, ROUTE_LENGTH, routeAt } from './routes.mjs';
+import { ROUTES, ROUTE_LENGTH, routeAt, environmentAt } from './routes.mjs';
+import { teenTalwar, empressMarket, merewether } from './landmarks';
 
 export class CityRoute {
   variants:{open:TransformNode;coast:TransformNode}[]=[];
@@ -21,7 +22,7 @@ export class CityRoute {
       const x=r.id==='mazar'?-22:r.id==='empress'?-22:14;
       this.landmarks.push({node,at:r.start+r.landmark,x});
     }
-    w.landmark.scaling.setAll(1.35);
+    w.landmark.scaling.setAll(1.05);
     for(let i=0;i<7;i++){
       const bird=new TransformNode('flying seagull',w.scene);
       w.ball('bird body',.18,0,0,0,'white',bird).scaling.z=1.7;
@@ -73,29 +74,11 @@ export class CityRoute {
     c.lineWidth=9;c.beginPath();c.moveTo(128,128);c.lineTo(90,88);c.moveTo(128,128);c.lineTo(178,75);c.stroke();tex.update();const mat=new StandardMaterial('clock face',w.scene);mat.diffuseTexture=tex;mat.emissiveColor=new Color3(.15,.15,.15);mat.specularColor=Color3.Black();
     const face=MeshBuilder.CreateDisc('clock',{radius:size/2,tessellation:32},w.scene);face.position.set(x,y,z);face.material=mat;face.parent=p;return face;
   }
-  empress(){
-    const w=this.w,p=new TransformNode('Empress Market',w.scene);w.box('Empress terrace',29,.45,12,0,.2,0,'cream',p);
-    for(const side of [-1,1]){w.box('market wing',10.7,5.4,8,side*7.3,2.9,0,'#c6a273',p);w.box('wing cornice',11,.35,8.3,side*7.3,5.7,0,'#e2c497',p);for(let i=0;i<5;i++){const x=side*7.3+(i-2)*1.9;w.box('arched market window',.95,2.4,.08,x,2.1,-4.06,'#655b47',p);const cap=w.cyl('window arch',.95,.1,x,3.3,-4.07,'#655b47',p,undefined,16);cap.rotation.x=Math.PI/2;w.box('pilaster',.18,4.6,.2,x+.73,2.7,-4.12,'cream',p);}}
-    w.box('clock tower body',4.2,13.2,4.2,0,6.6,-1.5,'#d2ae7e',p);w.box('tower clock stage',4.9,3.6,4.9,0,13.3,-1.5,'#d7b581',p);w.box('tower cornice',5.25,.38,5.25,0,15.2,-1.5,'cream',p);this.clock(p,0,13.6,-4,2.6);
-    w.box('market gateway',2.4,4.9,.1,0,2.4,-3.66,'#544f40',p);const arch=w.cyl('gateway arch',2.4,.14,0,4.8,-3.69,'#544f40',p,undefined,20);arch.rotation.x=Math.PI/2;
-    for(const x of [-2.2,2.2])for(const z of [-3.7,.7]){w.cyl('tower turret',.5,3,x,16.6,z,'cream',p,.3);w.cyl('turret pinnacle',.65,1.6,x,18.9,z,'#b99264',p,0,4);}
-    w.cyl('Empress spire',3.9,4.5,0,17.65,-1.5,'#b99466',p,0,4);
-    w.sign(11,8,1.25,0,5.8,-4.08,0,p);w.merge(p);return p;
-  }
-  tower(){
-    const w=this.w,p=new TransformNode('Merewether Clock Tower',w.scene);w.box('tower plaza',11,.25,11,0,.12,0,'cream',p);w.box('tower steps',7,.5,7,0,.45,0,'sand',p);w.box('tower base',5.2,5.5,5.2,0,3.3,0,'#c5a77b',p);
-    for(const x of [-1.7,0,1.7])w.box('gothic openings',.62,2.8,.05,x,2.8,-2.64,'#666250',p);
-    w.cyl('octagonal tower',4.3,7,0,9.4,0,'#cfb181',p,3.5,8);w.box('clock chamber',4.1,3,4.1,0,13.2,0,'#d1b485',p);this.clock(p,0,13.3,-2.08,2.1);w.box('tower crown',4.5,.33,4.5,0,14.9,0,'cream',p);
-    w.cyl('gothic spire',4.2,6,0,18,0,'#b29368',p,0,8);for(const x of [-2,2])for(const z of [-2,2])w.cyl('pinnacles',.48,3,x,16.3,z,'cream',p,0,4);
-    w.cyl('tower finial',.13,1.5,0,21.7,0,'dark',p,0);w.merge(p);return p;
-  }
-  swords(){
-    const w=this.w,p=new TransformNode('Teen Talwar monument',w.scene);w.cyl('roundabout',12,.35,0,.15,0,'leaf',p,undefined,32);w.cyl('white platform',7,.65,0,.65,0,'white',p,undefined,24);
-    for(let i=0;i<3;i++){const a=i*Math.PI*2/3;const s=new TransformNode('marble sword',w.scene);s.parent=p;s.position.set(Math.sin(a)*1.15,0,Math.cos(a)*1.15);s.rotation.z=-Math.sin(a)*.13;s.rotation.x=Math.cos(a)*.13;w.box('sword handle',.6,2.2,.6,0,2,0,'white',s);w.box('sword guard',3,.5,.7,0,3.2,0,'white',s);w.box('marble blade',.9,7,.3,0,7,0,'white',s);w.cyl('blade tip',1.05,1.7,0,11.35,0,'white',s,0,4).scaling.z=.28;}
-    w.merge(p);return p;
-  }
+  empress(){ return empressMarket(this.w,(...args)=>this.clock(...args)); }
+  tower(){return merewether(this.w,(...args)=>this.clock(...args));}
+  swords(){ return teenTalwar(this.w); }
   update(distance:number,time:number){
-    const w=this.w;w.chunks.forEach((chunk,i)=>{const r=routeAt(distance+chunk.position.z+4);const variant=this.variants[i];chunk.setEnabled(r.kind==='street');variant.open.setEnabled(r.kind==='garden'||r.kind==='plaza');variant.coast.setEnabled(r.kind==='coast');variant.open.position.z=chunk.position.z;variant.coast.position.z=chunk.position.z;});
+    const w=this.w;w.chunks.forEach((chunk,i)=>{const r=environmentAt(distance+chunk.position.z+4);const variant=this.variants[i];chunk.setEnabled(r.kind==='street');variant.open.setEnabled(r.kind==='garden'||r.kind==='plaza');variant.coast.setEnabled(r.kind==='coast');variant.open.position.z=chunk.position.z;variant.coast.position.z=chunk.position.z;});
     const coast=routeAt(distance).kind==='coast'||routeAt(distance+100).kind==='coast';this.sea.setEnabled(coast);w.skyline?.setEnabled(!coast);
     this.landmarks.forEach(l=>{let z=l.at+Math.floor(distance/ROUTE_LENGTH)*ROUTE_LENGTH-distance;if(z< -50)z+=ROUTE_LENGTH;l.node.setEnabled(z>-50&&z<205);l.node.position.set(l.x,0,z);});
     this.birds.forEach((b,i)=>{b.position.set(Math.sin(time*.12+i)*23,10+i*1.2,23+i*14);b.rotation.y=.4;for(const wing of b.getChildMeshes())if(wing.metadata?.side)wing.rotation.z=Math.sin(time*3.5+i)*.35*wing.metadata.side;});

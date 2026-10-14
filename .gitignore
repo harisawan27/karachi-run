@@ -3,3 +3,8 @@ dist/
 .sites-runtime/
 .env
 *.local
+.tmp/
+
+# Source archives and reference capture are not runtime assets
+public/*.zip
+public/*.mp4

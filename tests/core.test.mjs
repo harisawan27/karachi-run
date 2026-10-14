@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive } from '../src/core.mjs';
+import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance } from '../src/core.mjs';
 import { routeAt, ROUTES, ROUTE_LENGTH } from '../src/routes.mjs';
+
+test('distance increases speed progressively with a safe maximum', () => {
+  assert.equal(speedAtDistance(0),14);
+  assert.equal(speedAtDistance(500),20);
+  assert.equal(speedAtDistance(1000),26);
+  assert.equal(speedAtDistance(1500),32);
+  assert.equal(speedAtDistance(10000),32);
+  assert.equal(speedAtDistance(-5),14);
+});
 test('saves coins and records across a fresh load', () => {
   const data = new Map(); const storage = { getItem: k => data.get(k), setItem: (k,v) => data.set(k,v) };
   const save = { ...parseSave(null), coins: 47, best: 890, totalScore: 1430, runs: 3 };
@@ -37,5 +46,5 @@ test('revives have an explicit cost and cannot overspend',()=>{
 test('all landmarks and sea view occur in one continuous route',()=>{
   for(const route of ROUTES)assert.equal(routeAt(route.start+1).id,route.id);
   assert.equal(routeAt(ROUTE_LENGTH).id,'saddar');assert.equal(routeAt(ROUTE_LENGTH).lap,1);
-  assert.equal(routeAt(1000).kind,'coast');
+  assert.equal(routeAt(ROUTES.find(r=>r.id==='seaview').start+1).kind,'coast');
 });

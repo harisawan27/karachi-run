@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "status": "default-models-integrated-legacy-unlocks-reserved",
+  "characters": [
+    {"id":"karachi-boy","role":"runner","availability":"free-default","status":"supplied-rig-procedural-animation","reference":"runner-concept-v1.png","model":"../../public/pakistani_boy.glb"},
+    {"id":"sindh-warden","role":"chaser","availability":"free-default","status":"supplied-rig-procedural-animation","reference":"warden-concept-v1.png","model":"../../public/police_man_from_the_u.s.a._t-pose_rig_mixamo.glb"},
+    {"id":"imran-khan","role":"runner","availability":"earned-coin-unlock","status":"existing-preserve","model":"../../public/models/imran.glb","price":null},
+    {"id":"asim-munir","role":"chaser","availability":"earned-coin-unlock","status":"existing-preserve","model":"../../public/models/asim.glb","price":null}
+  ]
+}

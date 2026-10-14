@@ -11,7 +11,10 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
-import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import { ModelCharacter as Character } from './model-character';
+import { LocalAssets } from './local-assets';
+import { mazda } from './mazda';
+import { mazar } from './landmarks';
 import { CityRoute } from './city-route';
 
 export type ObstacleKind = 'bus' | 'barrier' | 'arch' | 'rickshaw';
@@ -25,8 +28,10 @@ const signTexts = [
 ];
 export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
-  chunks: TransformNode[] = []; runner: Character; pursuer: Character; landmark: TransformNode; skyline:TransformNode|null=null; city:CityRoute; travel=0;time=0; mode='menu'; speed=0; low=false;
-  constructor(public canvas:HTMLCanvasElement) {
+  chunks: TransformNode[] = []; runner: Character; pursuer: Character; landmark: TransformNode; skyline:TransformNode|null=null; city:CityRoute; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
+  groundHeight=0;airborne=false;chaseVisible=true;private chaseOpacity=1;private cameraElevation=0;
+  assets:LocalAssets;
+  constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
     this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
     this.scene=new Scene(this.engine); this.scene.clearColor=new Color4(.66,.81,.82,1);
@@ -39,8 +44,9 @@ export class KarachiWorld {
     this.makeStreet();
     for(let i=0;i<12;i++)this.chunks.push(this.makeChunk(i));
     this.landmark=this.makeMazar();
-    this.runner=new Character(this,false);this.runner.root.position.set(0,0,0);
+    this.runner=new Character(this,false,runnerSource);this.runner.root.position.set(0,0,0);
     this.pursuer=new Character(this,true);this.pursuer.root.position.set(0,0,-6);
+    this.assets=new LocalAssets(this);
     this.city=new CityRoute(this);this.city.update(0,0);
     window.addEventListener('resize',()=>this.engine.resize());
     this.scene.skipPointerMovePicking=true;
@@ -145,19 +151,10 @@ export class KarachiWorld {
     this.cyl('umbrella pole',.06,2.8,x,1.6,z,'dark',root);this.cyl('market umbrella',3.1,.55,x,3,z,'red',root,0,8);
   }
   parkedRickshaw(root:TransformNode,x:number,z:number){const r=this.vehicle('rickshaw');r.parent=root;r.position.set(x,0,z);r.rotation.y=.18;}
-  makeMazar() {
-    const p=new TransformNode('Mazar-e-Quaid stylized landmark',this.scene);
-    this.box('mausoleum platform',15,.8,15,0,.4,0,'white',p);
-    this.box('mausoleum base',10.5,8.5,10.5,0,4.8,0,'cream',p);
-    this.box('mausoleum crown',11.2,.45,11.2,0,9.2,0,'white',p);
-    const dome=this.ball('white dome',8.8,0,9.1,0,'white',p);dome.scaling.y=.8;
-    for(const x of [-3.4,0,3.4]){this.box('arch opening',1.65,4,.05,x,3.2,-5.29,'sand',p);const arch=this.cyl('arch round top',1.65,.09,x,5.2,-5.3,'sand',p,undefined,16);arch.rotation.x=Math.PI/2;}
-    for(const x of [-5,5])for(const z of [-5,5])this.box('marble edge',.3,8.5,.3,x,4.8,z,'white',p);
-    this.cyl('dome finial',.15,1.1,0,13.4,0,'yellow',p,0);
-    this.merge(p);p.position.set(-2,0,145);return p;
-  }
+  makeMazar() { return mazar(this); }
   vehicle(kind:'bus'|'rickshaw') {
-    const r=new TransformNode(kind,this.scene);const bus=kind==='bus';const w=bus?2.62:2;const d=bus?6.3:2.85;
+    if(kind==='bus')return mazda(this);
+    const r=new TransformNode(kind,this.scene);const bus=false;const w=bus?2.62:2;const d=bus?6.3:2.85;
     this.box('vehicle chassis',w,.62,d,0,.67,0,bus?'teal':'green',r);
     this.box('vehicle body',w,bus?2.35:1.2,d-.18,0,bus?2.13:1.56,0,bus?'yellow':'yellow',r);
     if(bus){
@@ -185,7 +182,7 @@ export class KarachiWorld {
     this.merge(r);return r;
   }
   obstacle(kind:ObstacleKind) {
-    if(kind==='bus'||kind==='rickshaw')return this.vehicle(kind);
+    if(kind==='bus'||kind==='rickshaw')return this.assets.vehicle(kind);
     const root=new TransformNode(kind,this.scene);
     if(kind==='barrier'){
       for(const x of [-1,1]){this.box('barrier foot',.42,.16,.8,x,.09,0,'dark',root);this.box('barrier leg',.14,1.35,.15,x,.7,0,'dark',root);}
@@ -219,61 +216,25 @@ export class KarachiWorld {
     }
     this.merge(root);return root;
   }
+  async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.root.dispose();old.shadow.dispose();this.runner=next;}
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
     this.time+=dt;this.travel+=distanceDelta;
     for(const c of this.chunks){c.position.z-=distanceDelta;if(c.position.z< -48)c.position.z+=216;}
-    this.city.update(this.travel,this.time);
+    this.city.update(this.travel,this.time);this.assets.update(this.travel);
     const running=this.mode==='running',caught=this.mode==='crashed'||this.mode==='over';
-    this.runner.animate(this.time,running,playerY,sliding);
-    this.pursuer.animate(this.time+.15,running,0,false);
+    this.runner.animate(this.time,running,playerY,sliding,this.speed,dt,this.rollRemaining);
+    this.chaseOpacity+=((this.chaseVisible?1:0)-this.chaseOpacity)*(1-Math.exp(-dt*8));this.pursuer.root.setEnabled(this.chaseOpacity>.01);this.pursuer.shadow.setEnabled(this.chaseOpacity>.01);for(const mesh of this.pursuer.root.getChildMeshes())mesh.visibility=this.chaseOpacity;
+    this.pursuer.animate(this.time+.15,running&&!this.chaserBlocked,0,false,this.speed,dt);
     this.runner.root.rotation.y+=(playing&&!caught?0:Math.PI-this.runner.root.rotation.y)*(playing&&!caught?0:Math.min(1,dt*6));
     if(running)this.runner.root.rotation.y*=Math.exp(-dt*9);
     this.pursuer.root.rotation.y=caught||!playing?Math.PI:0;
-    this.pursuer.root.position.z+=((caught?-1.6:playing?-3.6:-2)-this.pursuer.root.position.z)*Math.min(1,dt*4);
-    const desired=playing?new Vector3(this.runner.root.position.x*.13,6.2,-13):new Vector3(-4.1,7,-14);
+    if(!playing)this.pursuer.root.position.z+=(-2-this.pursuer.root.position.z)*Math.min(1,dt*4);
+    this.cameraElevation+=(this.groundHeight-this.cameraElevation)*(1-Math.exp(-dt*5));
+    const desired=playing?new Vector3(this.runner.root.position.x*.1,5.4+this.cameraElevation*.7,-10.8):new Vector3(-4.1,7,-14);
     const factor=1-Math.exp(-dt*4);this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const target=playing?new Vector3(this.runner.root.position.x*.08,1.35,17):new Vector3(1,1.8,27);
-    this.camera.setTarget(target);this.camera.fov=innerWidth<700?.98:.87;
-    this.pursuer.root.position.x+=(this.runner.root.position.x-1.15-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
-  }
-}
-export class Character {
-  root:TransformNode;body:TransformNode;legs:TransformNode[]=[];arms:TransformNode[]=[];shadow:Mesh;
-  constructor(w:KarachiWorld,police:boolean) {
-    this.root=new TransformNode(police?'Asim pursuer':'Imran runner',w.scene);this.body=new TransformNode('character body',w.scene);this.body.parent=this.root;
-    const cloth=police?'#b69d6c':'#f1ead5';const hair=police?'#272e28':'#45433a';
-    const torso=w.cyl('kurta torso',.73,.99,0,1.34,0,cloth,this.body,.83);torso.scaling.z=.67;
-    if(!police){w.box('waistcoat back',.79,.72,.08,0,1.45,-.28,'#41624b',this.body);for(const x of [-.21,.21])w.box('waistcoat front',.32,.74,.11,x,1.45,.23,'#41624b',this.body);w.box('kurta hem',.77,.35,.54,0,.91,0,cloth,this.body);}
-    else{w.box('uniform belt',.77,.095,.52,0,.99,0,'dark',this.body);w.box('belt buckle',.13,.095,.04,0,.99,-.28,'yellow',this.body);for(const x of [-.26,.26]){w.box('epaulette',.17,.06,.38,x,1.85,0,'yellow',this.body);w.box('red collar tab',.1,.19,.05,x*.65,1.75,.26,'red',this.body);}w.box('service ribbons',.22,.13,.035,-.21,1.53,.28,'green',this.body);}
-    w.cyl('neck',.26,.22,0,1.94,0,'skin',this.body);
-    const head=w.ball('head',.57,0,2.22,.01,'skin',this.body);head.scaling.set(.86,1.14,.88);
-    const cap=w.ball('hair',.58,0,2.4,-.035,hair,this.body);cap.scaling.set(.87,.64,.93);
-    w.box('hair back',.43,.27,.13,0,2.27,-.22,hair,this.body);
-    for(const x of [-.26,.26])w.ball('ears',.14,x,2.21,0,'skin',this.body);
-    w.ball('nose',.115,0,2.18,.27,'skin',this.body);
-    for(const x of [-.115,.115]){w.ball('eyes',.038,x,2.27,.25,'dark',this.body);w.box('eyebrow',.09,.022,.04,x,2.32,.25,hair,this.body);}
-    if(police){w.box('moustache',.21,.065,.04,0,2.08,.252,'dark',this.body);const hat=w.cyl('officer cap',.63,.14,0,2.56,0,'uniform',this.body);hat.scaling.z=.9;w.box('cap visor',.49,.045,.3,0,2.51,.24,'dark',this.body);w.box('cap badge',.09,.08,.025,0,2.58,.285,'yellow',this.body);}
-    if(!police){for(const side of [-1,1]){const temple=w.ball('graying swept hair',.22,side*.23,2.34,-.06,'#807c6e',this.body);temple.scaling.set(.45,.8,1);}for(let i=0;i<3;i++){const sweep=w.ball('swept hair',.29,-.13+i*.12,2.48,.015-i*.07,hair,this.body);sweep.scaling.set(1.15,.6,1.3);}for(let i=0;i<4;i++)w.ball('waistcoat button',.044,.05,1.16+i*.17,.296,'yellow',this.body);}
-    const portrait=new Texture(police?'/characters/asim-munir.png':'/characters/imran-khan.png',w.scene);portrait.hasAlpha=true;
-    const faceMat=new StandardMaterial('recognizable '+(police?'Asim Munir':'Imran Khan')+' face',w.scene);faceMat.diffuseTexture=portrait;faceMat.useAlphaFromDiffuseTexture=true;faceMat.emissiveColor=new Color3(.32,.32,.32);faceMat.specularColor=Color3.Black();
-    const face=MeshBuilder.CreatePlane('character face artwork',{width:police?.75:.68,height:police?.9:.87},w.scene);face.position.set(0,2.29,.305);face.rotation.y=Math.PI;face.parent=this.body;face.material=faceMat;
-    const u0=police?.24:.255,u1=police?.76:.735,v0=police?.355:.445,v1=.99;face.setVerticesData(VertexBuffer.UVKind,[u0,v0,u1,v0,u1,v1,u0,v1]);
-    for(const side of [-1,1]){
-      const leg=new TransformNode('leg pivot',w.scene);leg.parent=this.body;leg.position.set(side*.23,.95,0);this.legs.push(leg);
-      w.cyl('shalwar',.31,.76,0,-.38,0,police?cloth:'trouser',leg,.28);
-      w.box('shoe',.32,.19,.52,0,-.81,.075,'#443e33',leg);
-      const arm=new TransformNode('arm pivot',w.scene);arm.parent=this.body;arm.position.set(side*.45,1.72,0);this.arms.push(arm);
-      const sleeve=w.cyl('sleeve',.235,.58,side*.045,-.28,0,cloth,arm,.27);sleeve.rotation.z=side*.14;
-      w.ball('hand',.22,side*.08,-.64,.06,'skin',arm);
-    }
-    this.shadow=MeshBuilder.CreateDisc('soft ground shadow',{radius:.6,tessellation:24},w.scene);this.shadow.rotation.x=Math.PI/2;this.shadow.position.y=.019;this.shadow.scaling.y=.7;this.shadow.material=w.mat('shadow','#3d5050');this.shadow.visibility=.36;
-  }
-  animate(t:number,running:boolean,y:number,slide:boolean) {
-    const cycle=t*(running?15:2);this.root.position.y=y;this.body.position.y=running?Math.abs(Math.sin(cycle))*.045:Math.sin(t*2)*.02;
-    this.body.rotation.x=slide?-1.12:running?.11:0;this.body.scaling.y=slide?.53:1;
-    this.legs.forEach((l,i)=>l.rotation.x=running&&!slide?Math.sin(cycle+i*Math.PI)*.82:slide?(i===0?-1.1:.55):0);
-    this.arms.forEach((l,i)=>{l.rotation.x=running?Math.sin(cycle+(i+1)*Math.PI)*.8:-.15;l.rotation.z=i===0?.1:-.1;});
-    this.shadow.position.x=this.root.position.x;this.shadow.position.z=this.root.position.z;this.shadow.scaling.x=1-y*.12;this.shadow.visibility=Math.max(.12,.36-y*.08);
+    const target=playing?new Vector3(this.runner.root.position.x*.08,2.0+this.cameraElevation*.7,18):new Vector3(1,1.8,27);
+    this.camera.setTarget(target);this.camera.fov=(innerWidth<innerHeight?.93:.87)+(running?Math.min(.10,(this.speed-14)*.006):0);
+    if(!playing)this.pursuer.root.position.x+=(-1.15-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
   }
 }
