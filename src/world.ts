@@ -28,9 +28,8 @@ const signTexts = [
 ];
 export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
-  chunks: TransformNode[] = []; runner: Character; pursuer: Character; cruiserBoard: TransformNode; landmark: TransformNode; skyline:TransformNode|null=null; city:CityRoute; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
+  chunks: TransformNode[] = []; runner!: Character; pursuer!: Character; cruiserBoard!: TransformNode; landmark!: TransformNode; skyline:TransformNode|null=null; city!:CityRoute; assets!:LocalAssets; ready!:Promise<void>; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
   groundHeight=0;airborne=false;chaseVisible=true;boardActive=false;private chaseOpacity=1;private cameraElevation=0;private shakeIntensity=0;private shakeDuration=0;
-  assets:LocalAssets;
   constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
     this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
@@ -41,16 +40,18 @@ export class KarachiWorld {
     this.scene.ambientColor=new Color3(.12,.12,.12);
     this.camera=new FreeCamera('camera',new Vector3(-4.1,7,-14),this.scene);this.camera.setTarget(new Vector3(1,1.6,29));this.camera.minZ=.15;this.camera.maxZ=240;this.camera.fov=.85;
     this.signMat=this.makeSigns();
-    this.makeStreet();
-    for(let i=0;i<12;i++)this.chunks.push(this.makeChunk(i));
-    this.landmark=this.makeMazar();
-    this.runner=new Character(this,false,runnerSource);this.runner.root.position.set(0,0,0);
-    this.pursuer=new Character(this,true);this.pursuer.root.position.set(0,0,-6);
-    this.cruiserBoard=this.makeCruiserBoard();
-    this.assets=new LocalAssets(this);
-    this.city=new CityRoute(this);this.city.update(0,0);
+    this.ready=this.initializeWorld(runnerSource);
     window.addEventListener('resize',()=>this.engine.resize());
     this.scene.skipPointerMovePicking=true;
+  }
+  private status(message:string){const label=document.querySelector<HTMLParagraphElement>('#loading p');if(label)label.textContent=message;}
+  private nextFrame(){return new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}
+  private async initializeWorld(runnerSource?:string){
+    this.status('BUILDING KARACHI STREETS…');this.makeStreet();await this.nextFrame();
+    for(let i=0;i<12;i++){this.status(`BUILDING STREET ${String(i+1).padStart(2,'0')} / 12…`);this.chunks.push(this.makeChunk(i));await this.nextFrame();}
+    this.status('SCULPTING MAZAR-E-QUAID…');this.landmark=this.makeMazar();await this.nextFrame();
+    this.status('LOADING YOUR RUNNERS…');this.runner=new Character(this,false,runnerSource);this.runner.root.position.set(0,0,0);this.pursuer=new Character(this,true);this.pursuer.root.position.set(0,0,-6);this.cruiserBoard=this.makeCruiserBoard();
+    this.assets=new LocalAssets(this);this.city=new CityRoute(this);await this.city.initialize();this.city.update(0,0);
   }
   mat(name:string,hex?:string) {
     const key=hex || name; const found=this.materials.get(key);if(found)return found;
@@ -327,10 +328,11 @@ export class KarachiWorld {
       this.shakeIntensity*=Math.exp(-dt*7);
     }
     this.cameraElevation+=(this.groundHeight-this.cameraElevation)*(1-Math.exp(-dt*5));
-    const desired=playing?new Vector3(this.runner.root.position.x*.1+sx,5.4+this.cameraElevation*.7+sy,-10.8):new Vector3(-4.1,7,-14);
+    const portrait=innerWidth<innerHeight;
+    const desired=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,portrait?-12.4:-10.8):new Vector3(-4.1,7,-14);
     const factor=1-Math.exp(-dt*4);this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const target=playing?new Vector3(this.runner.root.position.x*.08+sx*.5,2.0+this.cameraElevation*.7+sy*.5,18):new Vector3(1,1.8,27);
-    this.camera.setTarget(target);this.camera.fov=(innerWidth<innerHeight?.93:.87)+(running?Math.min(.10,(this.speed-14)*.006):0);
+    const target=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):new Vector3(1,1.8,27);
+    this.camera.setTarget(target);this.camera.fov=(portrait?1.2:.87)+(running?Math.min(.10,(this.speed-14)*.006):0);
     if(playing){
       const lateralDist=this.runner.root.position.x;
       this.camera.rotation.z+=(-lateralDist*.012-this.camera.rotation.z)*(1-Math.exp(-dt*10));

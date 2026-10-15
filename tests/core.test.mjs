@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction } from '../src/core.mjs';
+import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction, buyCruiserCharges, useCruiserCharge } from '../src/core.mjs';
 import { routeAt, ROUTES, ROUTE_LENGTH } from '../src/routes.mjs';
 
 test('distance increases speed progressively with a safe maximum', () => {
@@ -15,6 +15,22 @@ test('runner cadence stays controlled as game speed rises', () => {
   assert.equal(runCadence(14), 11.5);
   assert.ok(runCadence(32) < 14);
   assert.ok(runCadence(32) > runCadence(14));
+});
+test('fresh saves receive five Cruiser rides and legacy saves are migrated once', () => {
+  assert.equal(parseSave(null).cruiserCharges,5);
+  assert.equal(parseSave('{"coins":3,"cruiserCharges":0}').cruiserCharges,0);
+  assert.equal(parseSave('{"coins":3}').cruiserCharges,5);
+});
+test('Cruiser rides are purchased in singles or a five-pack and consumed on activation', () => {
+  const save={...parseSave(null),coins:500,cruiserCharges:0};
+  const one=buyCruiserCharges(save,1);
+  assert.equal(one.coins,410); assert.equal(one.cruiserCharges,1);
+  const pack=buyCruiserCharges(save,5);
+  assert.equal(pack.coins,150); assert.equal(pack.cruiserCharges,5);
+  assert.equal(buyCruiserCharges({...save,coins:89},1),null);
+  assert.equal(buyCruiserCharges(save,2),null);
+  assert.equal(useCruiserCharge(one).cruiserCharges,0);
+  assert.equal(useCruiserCharge({...save,cruiserCharges:0}),null);
 });
 test('coins stay on their route without magnet and only attract while active', () => {
   const anchor={x:-3.15,y:1.1,z:8}, runner={x:0,y:1.05,z:0};

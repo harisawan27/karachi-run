@@ -10,10 +10,17 @@ Karachi Run is an independent project. It uses familiar three-lane endless-runne
 
 Phase 1 tightens the moment-to-moment run without changing the route or starting the later roadmap phases. It includes responsive lane changes, a 160 ms jump input buffer for landing and ramp transitions, controlled run animation cadence as speed rises, coin collection feedback, and brief camera shake on a graze, board break, or hard landing. Coins keep their route positions when no magnet is active; the Coin Magnet is the only effect that pulls them toward Haris, and coins return smoothly to their route if the magnet runs out mid-pull.
 
-The Karachi Cruiser is a player-activated board shield, not a board pickup placed on the track. During a run, press **Space**, **B**, or **Enter** on a keyboard, or double-tap on a touchscreen. The visible board appears under the runner for up to 25 seconds and absorbs one collision or stumble. Breaking on a hit starts a 20-second cooldown and gives a short 1.8-second grace window; letting its timer expire starts a 15-second cooldown. The HUD shows the remaining active time.
+The Karachi Cruiser is a player-activated board shield, not a board pickup placed on the track. A fresh local save starts with five free Cruiser rides (and an older save receives the starter allotment the first time it is upgraded). There is no account sign-in yet, so the allotment and purchases are tied to this browser profile. After that, buy a ride for ₨ 90 or a five-ride pack for ₨ 350 in the Boards tab of the Bazaar. Each activation consumes one ride: press **Space**, **B**, or **Enter** on a keyboard, or double-tap on a touchscreen. The visible board appears under the runner for up to 25 seconds and absorbs one collision or stumble. Breaking on a hit starts a 20-second cooldown and gives a short 1.8-second grace window; letting its timer expire starts a 15-second cooldown. The HUD and board screen show the remaining ride count.
 
 Coin pickup also pulses the coin counter and plays the pickup sound. Phase 1 does not include coin spark particles or a coin flying to the HUD. The later audio, progression, and launch phases remain future work.
 
+## Recent prototype updates
+
+The home screen and navigation now use a game-style layout built for phone screens first. The bottom bar opens Home, Missions, Me, Shop, and City; the large **Run** button on Home starts a run. The mobile camera widens its view and reduces lateral tracking in portrait mode so the runner and all three lanes remain easier to follow. Touch controls adapt to small screens, and the gameplay instruction hint fades after the opening seconds.
+
+The Bazaar includes the Karachi Cruiser ride inventory. New local saves start with five rides, and older saves receive that starter allotment once during migration. A single ride costs ₨ 90 and a five-ride pack costs ₨ 350 in game coins. Activating the board consumes one ride; it lasts up to 25 seconds and shields one hit or stumble. The board is not a track pickup. Inventory is saved locally and is not a real-money purchase.
+
+Startup updates optional wallet and inventory UI only when those elements exist, so removing a navigation badge cannot throw before the lobby initializes. Scene creation is staged across browser frames: street sections, landmarks, and open-city scenery are built in small steps while the loading screen reports progress. Local vehicle and stall models have an eight-second timeout with simple in-game fallbacks, so a delayed optional model does not hold startup indefinitely. Character readiness is still required before the lobby becomes playable.
 ## What is in the game
 
 - A continuously looping route through eight Karachi-inspired districts: Saddar Bazaar, Empress Market, Mazar-e-Quaid, Old Town Streets, Merewether Tower, Clifton Boulevard, Teen Talwar, and Sea View.
@@ -22,8 +29,8 @@ Coin pickup also pulses the coin counter and plays the pickup sound. Phase 1 doe
 - A chase sequence with the Warden, plus an opening scene that can be skipped.
 - Collectible rupee-style coins, score multipliers, landmark discoveries, and rotating street missions.
 - A character collection. Haris is the starter runner; the Warden is the chase character. Imran Khan and Asim Munir are unlockable characters bought with earned in-game coins.
-- A Bazaar with Coin Magnet and Double Points energies, plus Wapsi Tickets used to continue after a crash.
-- Local records for coins, best score, total score, completed runs, settings, character ownership, energies, tickets, and mission progress.
+- An arcade-style Bazaar with Coin Magnet and Double Points energies, Cruiser ride packs, character unlocks, and Wapsi Tickets used to continue after a crash.
+- Local records for coins, best score, total score, completed runs, settings, character ownership, energies, tickets, Cruiser rides, and mission progress.
 - Mobile touch controls and keyboard controls for desktop. The layout adapts to portrait and landscape screens.
 
 Prices and balance are prototype values and may change. The rupee symbol is part of the in-game presentation; it does not represent a real-money purchase.
@@ -128,7 +135,7 @@ The project has no root `LICENSE` file. The presence of a model, image, font, or
 
 ## Saves, privacy, and limitations
 
-Progress is stored on the current browser and origin in `localStorage`, under the key `karachi-run.save.v1`. The save format is validated and migrated by the game code. It stores the coin balance, tickets, best and total scores, run count, sound and graphics preferences, selected and unlocked characters, energy inventory, and mission progress.
+Progress is stored on the current browser and origin in `localStorage`, under the key `karachi-run.save.v1`. The save format is validated and migrated by the game code. It stores the coin balance, tickets, best and total scores, run count, sound and graphics preferences, selected and unlocked characters, energy inventory, Cruiser ride inventory, and mission progress.
 
 There is no account system, cloud sync, server validation, or global leaderboard. Progress belongs to that browser profile and origin. Clearing site data, using private browsing, or opening the game at a different address can make it unavailable. A storage error falls back to the current session and the interface reports that progress may not persist. The game does not currently upload run reports; a player can choose to download a local problem report for debugging.
 

@@ -10,9 +10,11 @@ export function stepCoinAttraction(current, anchor, runner, dt, magnetActive) {
   const zPull=anchor.z>0&&anchor.z<22?pull:0;
   return {x:approach(current.x,runner.x,pull),y:approach(current.y,runner.y,pull),z:approach(current.z,0,zPull)};
 }
-export const INITIAL_SAVE = { version: 4, coins: 0, wapsiTickets: 0, best: 0, totalScore: 0, runs: 0, muted: false, lowGraphics: false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], energies: { magnet: 0, boost: 0 }, missionIndex: 0, missionProgress: 0 };
+export const INITIAL_SAVE = { version: 5, coins: 0, wapsiTickets: 0, cruiserCharges: 5, best: 0, totalScore: 0, runs: 0, muted: false, lowGraphics: false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], energies: { magnet: 0, boost: 0 }, missionIndex: 0, missionProgress: 0 };
 export const WAPSI_TICKET_PRICE = 90;
 export const WAPSI_TICKET_PACK = { count: 5, price: 350 };
+export const CRUISER_CHARGE_PRICE = 90;
+export const CRUISER_CHARGE_PACK = { count: 5, price: 350 };
 const safeInt = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.min(Number.MAX_SAFE_INTEGER, Math.floor(v)) : 0;
 export function parseSave(raw) {
   try {
@@ -22,7 +24,7 @@ export function parseSave(raw) {
     const unlockedCharacters = [...new Set(['pakistani_boy.glb', ...(Array.isArray(d.unlockedCharacters) ? d.unlockedCharacters.filter(x => allowed.includes(x)) : [])])];
     const selectedCharacter = unlockedCharacters.includes(d.selectedCharacter) ? d.selectedCharacter : 'pakistani_boy.glb';
     const energies = d.energies && typeof d.energies === 'object' ? d.energies : {};
-    return { version: 4, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, lowGraphics: d.lowGraphics === true, selectedCharacter, unlockedCharacters, energies: { magnet: safeInt(energies.magnet), boost: safeInt(energies.boost) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress) };
+    return { version: 5, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), cruiserCharges: d.cruiserCharges === undefined ? 5 : safeInt(d.cruiserCharges), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, lowGraphics: d.lowGraphics === true, selectedCharacter, unlockedCharacters, energies: { magnet: safeInt(energies.magnet), boost: safeInt(energies.boost) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress) };
   } catch { return { ...INITIAL_SAVE }; }
 }
 export function loadSave(storage) { try { return parseSave(storage.getItem(SAVE_KEY)); } catch { return { ...INITIAL_SAVE }; } }
@@ -41,6 +43,15 @@ export function buyAndUseWapsiTicket(save) {
   if(save.wapsiTickets>0) return useWapsiTicket(save);
   if(save.coins<WAPSI_TICKET_PRICE) return null;
   return {...save,coins:save.coins-WAPSI_TICKET_PRICE};
+}
+export function buyCruiserCharges(save, count=1) {
+  const price=count===1?CRUISER_CHARGE_PRICE:count===CRUISER_CHARGE_PACK.count?CRUISER_CHARGE_PACK.price:null;
+  if(price===null||save.coins<price)return null;
+  return {...save,coins:save.coins-price,cruiserCharges:save.cruiserCharges+count};
+}
+export function useCruiserCharge(save) {
+  if(save.cruiserCharges<1)return null;
+  return {...save,cruiserCharges:save.cruiserCharges-1};
 }
 
 export function collides(player, obstacle) {

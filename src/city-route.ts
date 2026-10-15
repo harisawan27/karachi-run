@@ -15,27 +15,37 @@ export class CityRoute {
   constructor(private w:KarachiWorld){
     w.box('Karachi ground',450,.08,500,0,-.3,100,'#c7c4ab');
     this.sea=w.box('Arabian Sea horizon',260,.03,500,-151,-.21,130,'#489fa9');
-    for(let i=0;i<w.chunks.length;i++)this.variants.push({open:this.openSection(i,false),coast:this.openSection(i,true)});
+  }
+  private nextFrame(){return new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}
+  private status(message:string){const label=document.querySelector<HTMLParagraphElement>('#loading p');if(label)label.textContent=message;}
+  async initialize(){
+    for(let i=0;i<this.w.chunks.length;i++){
+      this.status(`DRESSING THE CITY · ${i+1}/${this.w.chunks.length}`);
+      this.variants.push({open:this.openSection(i,false),coast:this.openSection(i,true)});
+      await this.nextFrame();
+    }
     for(const r of ROUTES){
       if(!r.landmark||r.id==='seaview')continue;
-      const node=r.id==='mazar'?w.landmark:r.id==='empress'?this.empress():r.id==='tower'?this.tower():this.swords();
+      this.status(`BUILDING LANDMARK · ${r.name.toUpperCase()}`);
+      const node=r.id==='mazar'?this.w.landmark:r.id==='empress'?this.empress():r.id==='tower'?this.tower():this.swords();
       const x=r.id==='mazar'?-22:r.id==='empress'?-22:14;
       this.landmarks.push({node,at:r.start+r.landmark,x});
+      await this.nextFrame();
     }
-    w.landmark.scaling.setAll(1.05);
+    this.w.landmark.scaling.setAll(1.05);
     for(let i=0;i<7;i++){
-      const bird=new TransformNode('flying seagull',w.scene);
-      w.ball('bird body',.18,0,0,0,'white',bird).scaling.z=1.7;
-      for(const side of [-1,1]){const wing=w.box('wing',.65,.035,.18,side*.36,0,0,'white',bird);wing.metadata={side};}
+      const bird=new TransformNode('flying seagull',this.w.scene);
+      this.w.ball('bird body',.18,0,0,0,'white',bird).scaling.z=1.7;
+      for(const side of [-1,1]){const wing=this.w.box('wing',.65,.035,.18,side*.36,0,0,'white',bird);wing.metadata={side};}
       this.birds.push(bird);
     }
     const shirts=['#bc6349','#367b87','#e4dac0','#678459','#b69dba','#dddddb'];
     for(let i=0;i<8;i++){
-      const p=new TransformNode('Karachi pedestrian',w.scene);
-      w.cyl('pedestrian kurta',.38,.72,0,1,0,shirts[i%shirts.length],p,.46);
-      w.ball('pedestrian head',.33,0,1.58,0,'skin',p);
-      w.ball('pedestrian hair',.34,0,1.69,-.02,'hair',p).scaling.y=.5;
-      for(const s of [-1,1]){const leg=w.cyl('walking leg',.16,.62,s*.13,.37,0,'trouser',p);leg.metadata={leg:s};const arm=w.cyl('arm',.13,.5,s*.28,1,0,shirts[i%shirts.length],p);arm.rotation.z=s*.12;}
+      const p=new TransformNode('Karachi pedestrian',this.w.scene);
+      this.w.cyl('pedestrian kurta',.38,.72,0,1,0,shirts[i%shirts.length],p,.46);
+      this.w.ball('pedestrian head',.33,0,1.58,0,'skin',p);
+      this.w.ball('pedestrian hair',.34,0,1.69,-.02,'hair',p).scaling.y=.5;
+      for(const side of [-1,1]){const leg=this.w.cyl('walking leg',.16,.62,side*.13,.37,0,'trouser',p);leg.metadata={leg:side};const arm=this.w.cyl('arm',.13,.5,side*.28,1,0,shirts[i%shirts.length],p);arm.rotation.z=side*.12;}
       this.walkers.push(p);
     }
   }
