@@ -47,7 +47,8 @@ export class LocalAssets {
     const scene=this.world.scene,root=new TransformNode(`fallback street asset ${i}`,scene);
     if(i<4){
       const kind=i<2?'bus':'rickshaw',vehicle=this.world.vehicle(kind);vehicle.parent=root;
-      root.metadata=i<2?{width:2.8,depth:6.3,height:3.8}:{width:2.1,depth:2.85,height:2.5};
+      // Match the visual scale used for loaded traffic models and their hitboxes.
+      root.metadata=i<2?{width:3.4,depth:9.3,height:4.9}:{width:2.9,depth:5.2,height:3.5};
     }else{
       this.world.box('fallback bazaar counter',2.6,1.2,1.25,0,.65,0,i===4?'#b8563c':'#d63e73',root);
       this.world.box('fallback bazaar canopy',3.5,.2,1.8,0,1.55,0,i===4?'#e5b74c':'#7bc5c2',root);

@@ -12,4 +12,6 @@ import {collides} from "../src/core.mjs";
 test("inflated vehicle front does not block the ramp-to-roof seam",()=>{const local=-4.3;const height=surfaceHeight(0,local,truck);assert.equal(collides({x:0,y:height},{...truck,z:-local,kind:"bus"}),true);assert.equal(canRide(height,height),true);assert.equal(canRide(0,height),false);});
 import {contactKind} from '../src/core.mjs';
 test('descending jump lands on an ascending ramp rather than falling through',()=>{const result=stepVertical(1,-3,.98,1.15,.04,32);assert.equal(result.y,1.15);assert.equal(result.velocity,0);});
-test('clothing clearance is ignored, edge brushes graze, body hits stop',()=>{const obstacle={x:0,z:0,width:3,depth:8,height:4,kind:'bus'};assert.equal(contactKind({x:1.9,y:0},obstacle),'none');assert.equal(contactKind({x:1.6,y:0},obstacle),'graze');assert.equal(contactKind({x:0,y:0},obstacle),'direct');assert.equal(contactKind({previousX:-2,x:2,y:0},obstacle),'direct');});
+test('clothing clearance is ignored, edge brushes graze, body hits stop',()=>{const obstacle={x:0,z:0,width:3,depth:8,height:4,kind:'bus'};assert.equal(contactKind({x:1.9,y:0},obstacle),'none');assert.equal(contactKind({x:1.6,y:0},obstacle),'graze');assert.equal(contactKind({x:0,y:0},obstacle),'direct');assert.equal(contactKind({previousX:-2,x:2,y:0},obstacle),'graze');});
+
+test('bounce-height bus roof stays walkable after a jump lands',()=>{const bus={x:0,width:3,depth:8,height:4.9,ramp:false};assert.equal(surfaceHeight(0,0,bus),4.9);assert.equal(surfaceHeight(1.6,0,bus),null);});

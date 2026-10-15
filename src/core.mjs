@@ -2,6 +2,21 @@ export const SAVE_KEY = 'karachi-run.save.v1';
 export const LANES = [-3.15, 0, 3.15];
 export function speedAtDistance(distance) { return Math.min(32,14+Math.max(0,Number.isFinite(distance)?distance:0)*.012); }
 export function runCadence(speed) { return 11.5 + Math.min(2, Math.max(0, speed - 14) * .11); }
+export const POWER_DURATION = Object.freeze({ magnet: 12, boost: 12, chai: 8.5, biryani: 12, shoes: 8 });
+export const POWER_MAX_LEVEL = 5;
+export const POWER_UPGRADE_BASE_PRICE = Object.freeze({ magnet: 180, boost: 220, chai: 280, biryani: 260, shoes: 200 });
+export function powerDuration(kind, level=0) { const base=POWER_DURATION[kind]; if(!base)return 0; const step=kind==='chai'?2.5:kind==='magnet'?3:2; return base+step*Math.min(POWER_MAX_LEVEL,Math.max(0,safeInt(level))); }
+export function powerUpgradePrice(kind, level=0) { const base=POWER_UPGRADE_BASE_PRICE[kind]; return base ? base*(Math.max(0,safeInt(level))+1) : 0; }
+export const POWER_PICKUP_CHANCE = .70;
+function seededUnit(seed, salt=0) { let x=((seed>>>0)^Math.imul((salt+1)>>>0,0x9e3779b9))>>>0; x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);x=(x^(x>>>16))>>>0;return x/4294967296; }
+export function powerPickupChoice(seed, opportunity) { if(seededUnit(seed,opportunity*2)>=POWER_PICKUP_CHANCE)return null;const r=seededUnit(seed,opportunity*2+1);return r<.25?'magnet':r<.48?'boost':r<.63?'chai':r<.81?'biryani':'shoes'; }
+export function powerPickupDelay(seed, opportunity) { return 18+seededUnit(seed,opportunity*2+701)*10; }
+export function firstPowerPickupDistance(seed) { return 110+seededUnit(seed,901)*100; }
+export function distanceAfterRunTime(distance, seconds) { const d=Math.max(0,Number.isFinite(distance)?distance:0),t=Math.max(0,Number.isFinite(seconds)?seconds:0),speed=14+.012*d,rate=.012,cap=32,limit=1500;if(d>=limit)return d+cap*t;const toCap=Math.log(cap/speed)/rate;if(t<=toCap)return (d+14/rate)*Math.exp(rate*t)-14/rate;return limit+(t-toCap)*cap; }
+
+export function scorePowerMultiplier(boostActive, biryaniActive) { return (boostActive ? 2 : 1) * (biryaniActive ? 2 : 1); }
+export function coinPowerValue(biryaniActive) { return biryaniActive ? 2 : 1; }
+export function buyPowerUpgrade(save, kind) { const level=save.powerLevels?.[kind]??0, price=powerUpgradePrice(kind,level); if(!price || level>=POWER_MAX_LEVEL || save.coins<price)return null; return {...save,coins:save.coins-price,powerLevels:{...save.powerLevels,[kind]:level+1}}; }
 export function stepCoinAttraction(current, anchor, runner, dt, magnetActive) {
   const approach=(from,to,rate)=>from+(to-from)*rate;
   const recovering=1-Math.exp(-18*dt);
@@ -10,7 +25,7 @@ export function stepCoinAttraction(current, anchor, runner, dt, magnetActive) {
   const zPull=anchor.z>0&&anchor.z<22?pull:0;
   return {x:approach(current.x,runner.x,pull),y:approach(current.y,runner.y,pull),z:approach(current.z,0,zPull)};
 }
-export const INITIAL_SAVE = { version: 5, coins: 0, wapsiTickets: 0, cruiserCharges: 5, best: 0, totalScore: 0, runs: 0, muted: false, lowGraphics: false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], energies: { magnet: 0, boost: 0 }, missionIndex: 0, missionProgress: 0 };
+export const INITIAL_SAVE = { version: 7, coins: 0, wapsiTickets: 0, cruiserCharges: 5, best: 0, totalScore: 0, runs: 0, muted: false, musicMuted: false, voiceMuted: false, lowGraphics: false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], powerLevels: { magnet: 0, boost: 0, chai: 0, biryani: 0, shoes: 0 }, missionIndex: 0, missionProgress: 0 };
 export const WAPSI_TICKET_PRICE = 90;
 export const WAPSI_TICKET_PACK = { count: 5, price: 350 };
 export const CRUISER_CHARGE_PRICE = 90;
@@ -24,7 +39,8 @@ export function parseSave(raw) {
     const unlockedCharacters = [...new Set(['pakistani_boy.glb', ...(Array.isArray(d.unlockedCharacters) ? d.unlockedCharacters.filter(x => allowed.includes(x)) : [])])];
     const selectedCharacter = unlockedCharacters.includes(d.selectedCharacter) ? d.selectedCharacter : 'pakistani_boy.glb';
     const energies = d.energies && typeof d.energies === 'object' ? d.energies : {};
-    return { version: 5, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), cruiserCharges: d.cruiserCharges === undefined ? 5 : safeInt(d.cruiserCharges), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, lowGraphics: d.lowGraphics === true, selectedCharacter, unlockedCharacters, energies: { magnet: safeInt(energies.magnet), boost: safeInt(energies.boost) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress) };
+    const levels = d.powerLevels && typeof d.powerLevels === 'object' ? d.powerLevels : Object.fromEntries(['magnet','boost','chai','biryani','shoes'].map(k=>[k,energies[k]??0]));
+    return { version: 7, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), cruiserCharges: d.cruiserCharges === undefined ? 5 : safeInt(d.cruiserCharges), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, musicMuted: d.musicMuted === true, voiceMuted: d.voiceMuted === true, lowGraphics: d.lowGraphics === true, selectedCharacter, unlockedCharacters, powerLevels: { magnet: Math.min(5,safeInt(levels.magnet)), boost: Math.min(5,safeInt(levels.boost)), chai: Math.min(5,safeInt(levels.chai)), biryani: Math.min(5,safeInt(levels.biryani)), shoes: Math.min(5,safeInt(levels.shoes)) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress) };
   } catch { return { ...INITIAL_SAVE }; }
 }
 export function loadSave(storage) { try { return parseSave(storage.getItem(SAVE_KEY)); } catch { return { ...INITIAL_SAVE }; } }
@@ -92,5 +108,6 @@ export function contactKind(player,obstacle){
  const half=(obstacle.width??(obstacle.kind==='rickshaw'?2:2.6))/2;
  const min=Math.min(player.previousX??player.x,player.x),max=Math.max(player.previousX??player.x,player.x);
  if(max<obstacle.x-half-.22||min>obstacle.x+half+.22)return 'none';
- return max>=obstacle.x-half+.4&&min<=obstacle.x+half-.4?'direct':'graze';
+ const lateralShift=Math.abs(player.x-(player.previousX??player.x));
+ return lateralShift>.12?'graze':Math.abs(player.x-obstacle.x)<=half-.4?'direct':'graze';
 }

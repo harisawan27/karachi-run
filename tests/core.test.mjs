@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction, buyCruiserCharges, useCruiserCharge } from '../src/core.mjs';
+import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction, buyCruiserCharges, useCruiserCharge, POWER_DURATION, powerDuration, powerUpgradePrice, powerPickupChoice, powerPickupDelay, firstPowerPickupDistance, distanceAfterRunTime, scorePowerMultiplier, coinPowerValue, buyPowerUpgrade } from '../src/core.mjs';
 import { routeAt, ROUTES, ROUTE_LENGTH } from '../src/routes.mjs';
 
 test('distance increases speed progressively with a safe maximum', () => {
@@ -15,6 +15,28 @@ test('runner cadence stays controlled as game speed rises', () => {
   assert.equal(runCadence(14), 11.5);
   assert.ok(runCadence(32) < 14);
   assert.ok(runCadence(32) > runCadence(14));
+});
+test('Phase 2 power upgrades migrate safely, scale pickup duration, and spend coins', () => {
+  const legacy=parseSave(JSON.stringify({coins:31,energies:{magnet:2,boost:1}}));
+  assert.equal(legacy.coins,31);assert.deepEqual(legacy.powerLevels,{magnet:2,boost:1,chai:0,biryani:0,shoes:0});
+  assert.equal(legacy.musicMuted,false);assert.equal(legacy.voiceMuted,false);
+  assert.equal(POWER_DURATION.chai,8.5);assert.equal(POWER_DURATION.biryani,12);assert.equal(POWER_DURATION.shoes,8);
+  assert.equal(powerDuration('chai',0),8.5);assert.equal(powerDuration('chai',5),21);assert.equal(powerDuration('magnet',5),27);assert.equal(powerDuration('shoes',5),18);
+  assert.equal(scorePowerMultiplier(false,false),1);assert.equal(scorePowerMultiplier(true,false),2);
+  assert.equal(scorePowerMultiplier(false,true),2);assert.equal(scorePowerMultiplier(true,true),4);
+  assert.equal(coinPowerValue(false),1);assert.equal(coinPowerValue(true),2);
+  const buyer={...legacy,coins:1000}, upgraded=buyPowerUpgrade(buyer,'chai');
+  assert.equal(powerUpgradePrice('chai',0),280);assert.equal(upgraded.coins,720);assert.equal(upgraded.powerLevels.chai,1);
+  assert.equal(buyPowerUpgrade({...buyer,coins:279},'chai'),null);assert.equal(buyPowerUpgrade(buyer,'bad'),null);
+  assert.equal(buyPowerUpgrade({...buyer,powerLevels:{...buyer.powerLevels,shoes:5}},'shoes'),null);
+});
+test('route energy pickups are spaced, varied and never guaranteed in every interval', () => {
+  assert.equal(firstPowerPickupDistance(1234),firstPowerPickupDistance(1234));
+  assert.ok(firstPowerPickupDistance(1234)>=110&&firstPowerPickupDistance(1234)<=210);
+  assert.ok(powerPickupDelay(1234,4)>=18&&powerPickupDelay(1234,4)<28);
+  const choices=Array.from({length:200},(_,i)=>powerPickupChoice(9876,i));
+  assert.ok(choices.includes(null));for(const kind of ['magnet','boost','chai','biryani','shoes'])assert.ok(choices.includes(kind));
+  assert.ok(distanceAfterRunTime(0,10)>140);assert.ok(distanceAfterRunTime(1800,10)-1800===320);
 });
 test('fresh saves receive five Cruiser rides and legacy saves are migrated once', () => {
   assert.equal(parseSave(null).cruiserCharges,5);

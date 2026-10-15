@@ -12,7 +12,15 @@ Phase 1 tightens the moment-to-moment run without changing the route or starting
 
 The Karachi Cruiser is a player-activated board shield, not a board pickup placed on the track. A fresh local save starts with five free Cruiser rides (and an older save receives the starter allotment the first time it is upgraded). There is no account sign-in yet, so the allotment and purchases are tied to this browser profile. After that, buy a ride for ₨ 90 or a five-ride pack for ₨ 350 in the Boards tab of the Bazaar. Each activation consumes one ride: press **Space**, **B**, or **Enter** on a keyboard, or double-tap on a touchscreen. The visible board appears under the runner for up to 25 seconds and absorbs one collision or stumble. Breaking on a hit starts a 20-second cooldown and gives a short 1.8-second grace window; letting its timer expire starts a 15-second cooldown. The HUD and board screen show the remaining ride count.
 
-Coin pickup also pulses the coin counter and plays the pickup sound. Phase 1 does not include coin spark particles or a coin flying to the HUD. The later audio, progression, and launch phases remain future work.
+Coin pickup also pulses the coin counter and plays the pickup sound. The later progression and launch phases remain future work.
+
+### Phase 2: Desi soundscape and power-ups — complete
+
+The run now has an original, speed-synced Karachi beat built from dhol-style low percussion, hand-played rhythm accents, and plucked melodic notes. Tempo rises with course speed and the mix runs through a compressor to keep the sound comfortable. Coin, lane-change, jump, landing, slide, crash, power-up, and approaching-bus sounds use layered Web Audio synthesis. No third-party recordings or unverified music are bundled.
+
+Urdu quips are optional and use the browser’s installed Urdu speech voice when one is available; the game never imitates a real person’s voice. The Settings screen saves separate Street Effects, Karachi Beat, and Urdu Voice Quips preferences.
+
+Five Karachi-themed powers appear as track pickups: **Coin Magnet** draws nearby coins, **Double Points** doubles score, **Dhabba Chai Jetpack** rises above the rooftops for a sky-coin trail, **Khazana Biryani** doubles score and coin rewards, and **Peshawari Bounce** boosts jumps. Pickups now wait for a distance-based cooldown equivalent to roughly 18–28 seconds of running, skip about three in ten eligible opportunities, and keep an opening stretch clear before the first one. This spaces rewards out even as speed rises. The Bazaar upgrades each pickup’s duration with earned coins, up to level 5; it does not sell one-run power stock. The pickups have distinct 3D silhouettes: a horseshoe magnet, a gold ×2 token, a steaming chai glass and saucer, an open biryani handi, and Peshawari sandals with a bounce cue. Chai flight adds visible twin plumes and a halo, eases the camera into a high city view, and returns it smoothly on landing. While airborne, a continuous zigzag of coins covers all three lanes; the last coin is placed at the predicted end of the remaining flight. Save migration preserves existing wallet, character, ticket, board, energy, and record data while converting old energy counts into upgrade levels.
 
 ## Recent prototype updates
 
@@ -25,12 +33,12 @@ Startup updates optional wallet and inventory UI only when those elements exist,
 
 - A continuously looping route through eight Karachi-inspired districts: Saddar Bazaar, Empress Market, Mazar-e-Quaid, Old Town Streets, Merewether Tower, Clifton Boulevard, Teen Talwar, and Sea View.
 - Three-lane running with lane changes, jumps, rolls, ramps, and rooftop sections. The run animation cadence stays controlled as speed rises, so the runner does not look frantic at the top speed. Open plazas and the coast break up the street sections.
-- Incoming Mazda-style buses, rickshaws, barriers, and low overhead obstacles. Traffic and obstacle placement reserve a way through each encounter.
+- Incoming Mazda-style buses, rickshaws, barriers, and low overhead obstacles. Bus and rickshaw models are normalized to a human-relative road scale, with collision bounds matched to their displayed size; fallback models use the same scale. Traffic and obstacle placement reserve a way through each encounter.
 - A chase sequence with the Warden, plus an opening scene that can be skipped.
 - Collectible rupee-style coins, score multipliers, landmark discoveries, and rotating street missions.
 - A character collection. Haris is the starter runner; the Warden is the chase character. Imran Khan and Asim Munir are unlockable characters bought with earned in-game coins.
-- An arcade-style Bazaar with Coin Magnet and Double Points energies, Cruiser ride packs, character unlocks, and Wapsi Tickets used to continue after a crash.
-- Local records for coins, best score, total score, completed runs, settings, character ownership, energies, tickets, Cruiser rides, and mission progress.
+- An arcade-style Bazaar where Coin Magnet, Double Points, Dhabba Chai Jetpack, Khazana Biryani, and Peshawari Bounce appear as route pickups. Earned coins upgrade their pickup duration; the Bazaar also offers Cruiser rides, character unlocks, and Wapsi Tickets used to continue after a crash.
+- Local records for coins, best score, total score, completed runs, settings, character ownership, power-up levels, tickets, Cruiser rides, and mission progress.
 - Mobile touch controls and keyboard controls for desktop. The layout adapts to portrait and landscape screens.
 
 Prices and balance are prototype values and may change. The rupee symbol is part of the in-game presentation; it does not represent a real-money purchase.
@@ -45,15 +53,15 @@ Prices and balance are prototype values and may change. The rupee symbol is part
 | Roll / slide | `↓` or `S` | Swipe down or tap the roll button |
 | Pause or resume | `Esc` or `P` | Pause button during a run |
 
-Make a short, deliberate swipe. A direct collision ends the run. A glancing contact causes a stumble; another stumble before recovery can end the run. A ramp leads onto a rooftop path with a ground-level bypass, and the route continues smoothly down its exit ramp.
+Make a short, deliberate swipe. A direct body hit ends the run. A glancing contact or a fast lane-change brush causes a stumble; another stumble within five seconds can end the run. Clothing clearance is ignored, and the hit checks use the displayed vehicle dimensions. A ramp leads onto a rooftop path with a ground-level bypass, and the route continues smoothly down its exit ramp.
 
 ### Run, score, and rewards
 
 - The runner starts at 14 m/s. Speed rises with distance, reaching 20 m/s at 500 m, 26 m/s at 1,000 m, and a cap of 32 m/s at 1,500 m.
-- Score grows with distance. Its multiplier increases during a longer run, up to ×8. Double Points temporarily doubles the score gain.
+- Score grows with distance. Its multiplier increases during a longer run, up to ×8. Double Points and Khazana Biryani temporarily double score; when both overlap, their bonuses stack.
 - Coins are added to the saved wallet as they are collected, including during a run. Ending or crashing does not credit the same coins again.
 - Discovering a landmark awards 100 points. Coin, obstacle, distance, and jump missions award bonus coins when completed.
-- Coins stay on their route and are collected only when the runner reaches them; they move toward the runner only while a Coin Magnet is active. If the magnet expires mid-pull, affected coins ease back to their route. A Coin Magnet attracts nearby coins for 12 seconds. Double Points also lasts 12 seconds. Purchased energies are consumed at the start of the next run.
+- Coins stay on their route and are collected only when the runner reaches them; they move toward the runner only while a Coin Magnet is active. If the magnet expires mid-pull, affected coins ease back to their route. A Coin Magnet attracts nearby coins for 12 seconds, Double Points lasts 12 seconds, Dhabba Chai lifts Haris above Karachi rooftops for an aerial coin trail, Khazana Biryani doubles score and coins for 12 seconds, and Peshawari Bounce boosts jumps for 8 seconds. Bazaar upgrades extend each pickup duration, up to level 5. None activates before its route pickup is collected. Chai flight eases into a high city view and descends smoothly when its timer ends.
 - A crash opens an eight-second continue choice. Continuing requires one Wapsi Ticket; there is no free revive. A ticket can be bought with coins at the crash screen or stocked in the Bazaar. The five-ticket bundle costs less than five individual tickets.
 - The City screen lets you choose a district as the starting point. A run then continues across all eight districts and loops back to the start.
 
@@ -135,7 +143,7 @@ The project has no root `LICENSE` file. The presence of a model, image, font, or
 
 ## Saves, privacy, and limitations
 
-Progress is stored on the current browser and origin in `localStorage`, under the key `karachi-run.save.v1`. The save format is validated and migrated by the game code. It stores the coin balance, tickets, best and total scores, run count, sound and graphics preferences, selected and unlocked characters, energy inventory, Cruiser ride inventory, and mission progress.
+Progress is stored on the current browser and origin in `localStorage`, under the key `karachi-run.save.v1`. The save format is validated and migrated by the game code. It stores the coin balance, tickets, best and total scores, run count, sound, music, voice, and graphics preferences, selected and unlocked characters, energy inventory, Cruiser ride inventory, and mission progress.
 
 There is no account system, cloud sync, server validation, or global leaderboard. Progress belongs to that browser profile and origin. Clearing site data, using private browsing, or opening the game at a different address can make it unavailable. A storage error falls back to the current session and the interface reports that progress may not persist. The game does not currently upload run reports; a player can choose to download a local problem report for debugging.
 

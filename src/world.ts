@@ -29,7 +29,7 @@ const signTexts = [
 export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
   chunks: TransformNode[] = []; runner!: Character; pursuer!: Character; cruiserBoard!: TransformNode; landmark!: TransformNode; skyline:TransformNode|null=null; city!:CityRoute; assets!:LocalAssets; ready!:Promise<void>; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
-  groundHeight=0;airborne=false;chaseVisible=true;boardActive=false;private chaseOpacity=1;private cameraElevation=0;private shakeIntensity=0;private shakeDuration=0;
+  groundHeight=0;airborne=false;chaseVisible=true;boardActive=false;private chaiJets:TransformNode|null=null;private chaiJetFlames:Mesh[]=[];private chaseOpacity=1;private cameraElevation=0;private flightBlend=0;private shakeIntensity=0;private shakeDuration=0;
   constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
     this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
@@ -205,18 +205,58 @@ export class KarachiWorld {
     const inset=this.cyl('coin inset',.44,.113,0,0,0,'#f1ac30',root,undefined,16);inset.rotation.x=Math.PI/2;
     this.box('coin stamp',.085,.28,.13,0,0,0,'white',root);this.merge(root);return root;
   }
-  power(kind:'magnet'|'boost') {
+  power(kind:'magnet'|'boost'|'chai'|'biryani'|'shoes') {
     const root=new TransformNode(kind,this.scene);
     if(kind==='magnet'){
       const path=[new Vector3(-.38,.55,0),new Vector3(-.38,-.02,0)];
       for(let i=0;i<=12;i++){const a=Math.PI+i*Math.PI/12;path.push(new Vector3(Math.cos(a)*.38,-.02+Math.sin(a)*.38,0));}
       path.push(new Vector3(.38,.55,0));const magnet=MeshBuilder.CreateTube('red horseshoe magnet',{path,radius:.14,tessellation:10},this.scene);magnet.material=this.mat('red');magnet.parent=root;
       for(const x of [-.38,.38])this.cyl('silver magnet pole',.29,.23,x,.54,0,'white',root);
-    }else{
+    }else if(kind==='boost'){
       const tile=this.box('double points bonus',.82,.82,.2,0,0,0,'yellow',root);tile.rotation.z=Math.PI/4;
       const tex=new DynamicTexture('double score label',{width:128,height:128},this.scene,false);tex.drawText('×2',null,87,'bold 65px Arial','#214d43','#ffd260',true);const m=new StandardMaterial('double points type',this.scene);m.diffuseTexture=tex;m.emissiveColor=new Color3(.3,.3,.3);const face=MeshBuilder.CreatePlane('x2',{size:.69},this.scene);face.position.z=-.12;face.material=m;face.parent=root;
+    }else if(kind==='chai'){
+      // A dhaba-style chai glass: translucent sides, visible tea, saucer and spoon.
+      const saucer=this.cyl('dhaba saucer',.98,.10,0,.055,0,'#efe0b4',root,undefined,32);
+      const saucerRim=MeshBuilder.CreateTorus('raised saucer rim',{diameter:1.04,thickness:.045,tessellation:32},this.scene);saucerRim.position.y=.115;saucerRim.material=this.mat('saucer gold','#d6a947');saucerRim.parent=root;
+      const glass=this.cyl('clear chai glass',.57,.76,0,.51,0,'#fff0c8',root,.49,32);
+      const glassMaterial=new StandardMaterial('chai glass translucent',this.scene);glassMaterial.diffuseColor=Color3.FromHexString('#ffe3a5');glassMaterial.emissiveColor=Color3.FromHexString('#38200c');glassMaterial.alpha=.34;glassMaterial.backFaceCulling=false;glass.material=glassMaterial;
+      this.cyl('karak tea',.43,.47,0,.39,0,'#a94d19',root,.40,28);
+      this.cyl('tea surface',.40,.025,0,.635,0,'#bd6828',root,undefined,28);
+      const glassLip=MeshBuilder.CreateTorus('bright glass rim',{diameter:.52,thickness:.04,tessellation:28},this.scene);glassLip.position.y=.89;glassLip.material=this.mat('chai rim','#fff0c8');glassLip.parent=root;
+      this.cyl('glass foot',.47,.065,0,.135,0,'#f4e4bd',root,undefined,28);
+      this.box('chai glass highlight',.035,.48,.025,-.20,.51,-.255,'#fff5da',root);
+      this.box('spoon handle',.055,.035,.39,.36,.14,-.08,'#d4d7d1',root);
+      const spoonBowl=this.ball('spoon bowl',.15,.36,.15,.17,'#e1e5dd',root);spoonBowl.scaling.z=.60;
+      for(let i=0;i<3;i++){const x=(i-1)*.18;const path=[new Vector3(x,.98,-.03),new Vector3(x-.075,1.15,.01),new Vector3(x+.07,1.34,.02),new Vector3(x-.035,1.52,0)];const steam=MeshBuilder.CreateTube(`visible chai steam ${i}`,{path,radius:.035,tessellation:7},this.scene);steam.material=this.mat('white','#fff5dc');steam.parent=root;}
+      const sparkle=this.ball('chai glint',.13,.47,.66,-.04,'#ffe38b',root);sparkle.scaling.set(.65,1.3,.65);
+    }else if(kind==='biryani'){
+      // Open clay handi, piled rice, saffron, herbs and visible masala pieces.
+      const body=this.cyl('terracotta biryani handi',1.02,.58,0,.30,0,'#a84d2d',root,.86,32);
+      this.cyl('handi painted band',.94,.09,0,.20,0,'#e3ae54',root,.94,32);
+      const handiRim=MeshBuilder.CreateTorus('wide handi rim',{diameter:.91,thickness:.085,tessellation:32},this.scene);handiRim.position.y=.59;handiRim.material=this.mat('handi rim gold','#edc36b');handiRim.parent=root;
+      const rice=MeshBuilder.CreateSphere('heaped basmati rice',{diameter:.82,segments:20},this.scene);rice.scaling.y=.42;rice.position.set(0,.69,0);rice.material=this.mat('basmati rice','#fff0c7');rice.parent=root;
+      for(let i=0;i<22;i++){const a=i*2.399,r=.12+(i%5)*.052,x=Math.cos(a)*r,z=Math.sin(a)*r;const grain=this.box(`long basmati grain ${i}`,.035,.028,.19,x,.81+(i%3)*.015,z,i%4===0?'#dfa64a':'#fff3d4',root);grain.rotation.y=-a*.45;grain.rotation.x=(i%2?.15:-.12);}
+      for(let i=0;i<5;i++){const a=i*2.17,x=Math.cos(a)*(.12+(i%2)*.09),z=Math.sin(a)*(.12+(i%2)*.09);const meat=this.ball(`masala chicken piece ${i}`,.20,x,.84,z,'#99431f',root);meat.scaling.set(1,.7,1.2);}
+      for(let i=0;i<6;i++){const a=i*1.8,x=Math.cos(a)*(.18+(i%2)*.08),z=Math.sin(a)*(.18+(i%2)*.08);const herb=this.box(`fresh coriander leaf ${i}`,.07,.025,.18,x,.86,z,'#3e8b4e',root);herb.rotation.y=a;}
+      for(const side of [-1,1]){const handle=this.box('handi side handle',.20,.12,.28,side*.52,.42,0,'#783824',root);handle.rotation.z=side*.2;}
+      for(let i=0;i<2;i++){const x=i?.17:-.17;const path=[new Vector3(x,.93,0),new Vector3(x-.06,1.06,0),new Vector3(x+.05,1.18,0)];const steam=MeshBuilder.CreateTube(`biryani steam ${i}`,{path,radius:.025,tessellation:6},this.scene);steam.material=this.mat('biryani steam','#fff2d2');steam.parent=root;}
+      const glint=this.ball('handi glint',.13,.48,.59,-.08,'#ffe38b',root);glint.scaling.set(.7,1.2,.7);
+    }else{
+      // A clearly readable pair of leather Peshawari sandals with an upward bounce cue.
+      for(const side of [-1,1]){const shoe=new TransformNode('Peshawari sandal',this.scene);shoe.parent=root;shoe.position.set(side*.34,.02,side*.04);shoe.rotation.y=side*.14;shoe.rotation.z=side*-.045;
+        this.box('dark leather sandal outsole',.62,.13,1.04,0,.04,0,'#5b2b20',shoe);
+        this.box('warm leather footbed',.56,.055,.97,0,.13,0,'#c58b43',shoe);
+        const front=this.box('broad Peshawari toe strap',.52,.12,.14,0,.24,.30,'#ead18e',shoe);front.rotation.y=side*.08;
+        const crossA=this.box('woven cross strap A',.56,.105,.13,0,.24,.02,'#b64c32',shoe);crossA.rotation.y=.48;
+        const crossB=this.box('woven cross strap B',.56,.105,.13,0,.24,-.10,'#dd9d50',shoe);crossB.rotation.y=-.48;
+        this.box('heel strap',.49,.09,.11,0,.22,-.37,'#ead18e',shoe);
+        this.box('strap jewel',.11,.08,.055,0,.30,.02,'#ffe58c',shoe);
+      }
+      for(const side of [-1,1]){this.box('bounce arrow shaft',.075,.48,.075,side*.86,.54,0,'#ffe26d',root);for(const direction of [-1,1]){const head=this.box('bounce arrow head',.075,.25,.075,side*.86+direction*.085,.82,0,'#fff1af',root);head.rotation.z=direction*-.68;}}
+      const base=MeshBuilder.CreateTorus('bounce medal ring',{diameter:1.95,thickness:.045,tessellation:32},this.scene);base.position.y=-.02;base.material=this.mat('bounce base green','#355b3d');base.parent=root;
     }
-    this.merge(root);return root;
+    this.merge(root);return root;    this.merge(root);return root;
   }
   makeCruiserBoard() {
     const root=new TransformNode('cruiser board',this.scene);
@@ -298,10 +338,20 @@ export class KarachiWorld {
     this.merge(root);root.setEnabled(false);return root;
   }
   setBoardActive(active:boolean){this.boardActive=active;this.cruiserBoard.setEnabled(active);}
+  setChaiActive(active:boolean){
+    if(!this.runner?.root)return;
+    if(active&&!this.chaiJets){
+      const root=new TransformNode('dhabba chai flight glow',this.scene);root.parent=this.runner.root;root.position.set(0,-.24,.02);this.chaiJets=root;
+      for(const side of [-1,1]){const flame=MeshBuilder.CreateCylinder('chai jet plume',{height:.72,diameterTop:.045,diameterBottom:.22,tessellation:10},this.scene);flame.position.x=side*.25;flame.material=this.mat('chai jet amber','#ffb847');(flame.material as StandardMaterial).emissiveColor=Color3.FromHexString('#ff8b33');(flame.material as StandardMaterial).alpha=.78;flame.parent=root;this.chaiJetFlames.push(flame);}
+      const halo=MeshBuilder.CreateTorus('chai flight halo',{diameter:1.15,thickness:.035,tessellation:24},this.scene);halo.position.y=-.1;halo.rotation.x=Math.PI/2;halo.material=this.mat('chai flight halo','#ffe29a');(halo.material as StandardMaterial).emissiveColor=Color3.FromHexString('#ffd26a');(halo.material as StandardMaterial).alpha=.5;halo.parent=root;
+    }
+    this.chaiJets?.setEnabled(active);
+  }
   shake(intensity=.2,duration=.25){this.shakeIntensity=Math.max(this.shakeIntensity,intensity);this.shakeDuration=duration;}
   async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.root.dispose();old.shadow.dispose();this.runner=next;}
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
+    if(this.chaiJets?.isEnabled()){const pulse=.82+Math.sin(this.time*25)*.18;for(const flame of this.chaiJetFlames)flame.scaling.y=pulse;this.chaiJets.rotation.y=Math.sin(this.time*3)*.035;}
     this.time+=dt;this.travel+=distanceDelta;
     for(const c of this.chunks){c.position.z-=distanceDelta;if(c.position.z< -48)c.position.z+=216;}
     this.city.update(this.travel,this.time);this.assets.update(this.travel);
@@ -329,10 +379,14 @@ export class KarachiWorld {
     }
     this.cameraElevation+=(this.groundHeight-this.cameraElevation)*(1-Math.exp(-dt*5));
     const portrait=innerWidth<innerHeight;
-    const desired=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,portrait?-12.4:-10.8):new Vector3(-4.1,7,-14);
+    const flightTarget=playing&&playerY-this.groundHeight>4.5?1:0;this.flightBlend+=(flightTarget-this.flightBlend)*(1-Math.exp(-dt*2.7));
+    const desiredGround=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,portrait?-12.4:-10.8):new Vector3(-4.1,7,-14);
+    const targetGround=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):new Vector3(1,1.8,27);
+    const desiredAir=new Vector3(this.runner.root.position.x*(portrait?.035:.09)+sx,playerY+(portrait?20:18)+sy,portrait?-20:-18);
+    const targetAir=new Vector3(this.runner.root.position.x*(portrait?.025:.07)+sx*.5,Math.max(1.6,this.cameraElevation*.18+1.6)+sy*.3,portrait?24:22);
+    const desired=Vector3.Lerp(desiredGround,desiredAir,this.flightBlend),target=Vector3.Lerp(targetGround,targetAir,this.flightBlend);
     const factor=1-Math.exp(-dt*4);this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const target=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):new Vector3(1,1.8,27);
-    this.camera.setTarget(target);this.camera.fov=(portrait?1.2:.87)+(running?Math.min(.10,(this.speed-14)*.006):0);
+    this.camera.setTarget(target);const groundFov=(portrait?1.2:.87)+(running?Math.min(.10,(this.speed-14)*.006):0),airFov=portrait?1.28:.99;this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
     if(playing){
       const lateralDist=this.runner.root.position.x;
       this.camera.rotation.z+=(-lateralDist*.012-this.camera.rotation.z)*(1-Math.exp(-dt*10));
