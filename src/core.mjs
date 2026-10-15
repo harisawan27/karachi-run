@@ -1,6 +1,15 @@
 export const SAVE_KEY = 'karachi-run.save.v1';
 export const LANES = [-3.15, 0, 3.15];
 export function speedAtDistance(distance) { return Math.min(32,14+Math.max(0,Number.isFinite(distance)?distance:0)*.012); }
+export function runCadence(speed) { return 11.5 + Math.min(2, Math.max(0, speed - 14) * .11); }
+export function stepCoinAttraction(current, anchor, runner, dt, magnetActive) {
+  const approach=(from,to,rate)=>from+(to-from)*rate;
+  const recovering=1-Math.exp(-18*dt);
+  if(!magnetActive||anchor.z<=-3||anchor.z>=36) return {x:approach(current.x,anchor.x,recovering),y:approach(current.y,anchor.y,recovering),z:approach(current.z,anchor.z,recovering)};
+  const pull=1-Math.exp(-24*dt);
+  const zPull=anchor.z>0&&anchor.z<22?pull:0;
+  return {x:approach(current.x,runner.x,pull),y:approach(current.y,runner.y,pull),z:approach(current.z,0,zPull)};
+}
 export const INITIAL_SAVE = { version: 4, coins: 0, wapsiTickets: 0, best: 0, totalScore: 0, runs: 0, muted: false, lowGraphics: false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], energies: { magnet: 0, boost: 0 }, missionIndex: 0, missionProgress: 0 };
 export const WAPSI_TICKET_PRICE = 90;
 export const WAPSI_TICKET_PACK = { count: 5, price: 350 };

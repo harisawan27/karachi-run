@@ -1,4 +1,5 @@
 import { CHARACTER_FILES } from './asset-manifest.mjs';
+import { runCadence } from './core.mjs';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
@@ -84,7 +85,7 @@ export class ModelCharacter {
   }
   animate(t:number,running:boolean,y:number,slide:boolean,speed=14,dt=.016,rollRemaining=0,boardRiding=false){
     this.gait+=((running?1:0)-this.gait)*(1-Math.exp(-dt*12));const moving=this.gait>.01&&!boardRiding;
-    if(moving)this.phase+=this.gait*dt*(16.0+Math.max(0,speed-14)*.26);const cycle=this.phase,airborne=this.source==='pakistani_boy.glb'?this.w.airborne:y>.12;
+    if(moving)this.phase+=this.gait*dt*runCadence(speed);const cycle=this.phase,airborne=this.source==='pakistani_boy.glb'?this.w.airborne:y>.12;
     this.root.position.y=y;
     const roll=slide?Math.max(0,Math.min(1,1-rollRemaining/.68)):0;
     this.landing*=Math.exp(-dt*13);const lateral=(this.root.position.x-this.lastX)/Math.max(dt,.001);this.lastX=this.root.position.x;

@@ -9,7 +9,7 @@ Karachi Run is an independent project. It uses familiar three-lane endless-runne
 ## What is in the game
 
 - A continuously looping route through eight Karachi-inspired districts: Saddar Bazaar, Empress Market, Mazar-e-Quaid, Old Town Streets, Merewether Tower, Clifton Boulevard, Teen Talwar, and Sea View.
-- Three-lane running with lane changes, jumps, rolls, ramps, and rooftop sections. Open plazas and the coast break up the street sections.
+- Three-lane running with lane changes, jumps, rolls, ramps, and rooftop sections. The run animation cadence stays controlled as speed rises, so the runner does not look frantic at the top speed. Open plazas and the coast break up the street sections.
 - Incoming Mazda-style buses, rickshaws, barriers, and low overhead obstacles. Traffic and obstacle placement reserve a way through each encounter.
 - A chase sequence with the Warden, plus an opening scene that can be skipped.
 - Collectible rupee-style coins, score multipliers, landmark discoveries, and rotating street missions.
@@ -37,7 +37,7 @@ Make a short, deliberate swipe. A direct collision ends the run. A glancing cont
 - Score grows with distance. Its multiplier increases during a longer run, up to ×8. Double Points temporarily doubles the score gain.
 - Coins are added to the saved wallet as they are collected, including during a run. Ending or crashing does not credit the same coins again.
 - Discovering a landmark awards 100 points. Coin, obstacle, distance, and jump missions award bonus coins when completed.
-- A Coin Magnet attracts nearby coins for 12 seconds. Double Points also lasts 12 seconds. Purchased energies are consumed at the start of the next run.
+- Coins stay on their route and are collected only when the runner reaches them; they move toward the runner only while a Coin Magnet is active. If the magnet expires mid-pull, affected coins ease back to their route. A Coin Magnet attracts nearby coins for 12 seconds. Double Points also lasts 12 seconds. Purchased energies are consumed at the start of the next run.
 - A crash opens an eight-second continue choice. Continuing requires one Wapsi Ticket; there is no free revive. A ticket can be bought with coins at the crash screen or stocked in the Bazaar. The five-ticket bundle costs less than five individual tickets.
 - The City screen lets you choose a district as the starting point. A run then continues across all eight districts and loops back to the start.
 
@@ -76,7 +76,7 @@ npm run build
 npm run preview
 ```
 
-- `npm test` runs the Node test suite for save parsing, route continuity, speed progression, traffic and chase movement, obstacle reachability, collisions, character imports, and release foundations.
+- `npm test` runs the Node test suite for save parsing, route continuity, speed progression and run cadence, coin and magnet behavior, traffic and chase movement, obstacle reachability, collisions, character imports, and release foundations.
 - `npm run build` type-checks the TypeScript, builds the production site into `dist/`, copies the explicitly listed runtime assets, and verifies the model files. It also checks that source ZIP archives and reference gameplay footage are not included in the release output.
 - `npm run preview` serves the most recent production build locally. Run the build first.
 
@@ -92,7 +92,7 @@ Deploy the contents of `dist/` to a static web host that serves JavaScript modul
 | `src/character.ts` | Gameplay character wrapper and loading boundary |
 | `src/model-character.ts` | GLB loading, character setup, procedural movement, jump/roll poses, and geometry grounding |
 | `src/character-preview.ts` | Isolated 3D character viewer used in the collection/store |
-| `src/core.mjs` | Save validation, economy helpers, collision rules, mission definitions, and speed progression |
+| `src/core.mjs` | Save validation, economy helpers, collision rules, mission definitions, speed progression, run cadence, and coin attraction |
 | `src/routes.mjs` | District order, route lengths, progress, and environment transitions |
 | `src/track.mjs` | Seeded obstacle phrases and safe-lane planning |
 | `src/traffic.mjs` | Moving-traffic placement, swept collision helpers, chase movement, and rooftop convoy layout |

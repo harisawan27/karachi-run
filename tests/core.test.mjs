@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance } from '../src/core.mjs';
+import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction } from '../src/core.mjs';
 import { routeAt, ROUTES, ROUTE_LENGTH } from '../src/routes.mjs';
 
 test('distance increases speed progressively with a safe maximum', () => {
@@ -10,6 +10,19 @@ test('distance increases speed progressively with a safe maximum', () => {
   assert.equal(speedAtDistance(1500),32);
   assert.equal(speedAtDistance(10000),32);
   assert.equal(speedAtDistance(-5),14);
+});
+test('runner cadence stays controlled as game speed rises', () => {
+  assert.equal(runCadence(14), 11.5);
+  assert.ok(runCadence(32) < 14);
+  assert.ok(runCadence(32) > runCadence(14));
+});
+test('coins stay on their route without magnet and only attract while active', () => {
+  const anchor={x:-3.15,y:1.1,z:8}, runner={x:0,y:1.05,z:0};
+  assert.deepEqual(stepCoinAttraction(anchor,anchor,runner,1/60,false),anchor);
+  const returned=stepCoinAttraction({x:0,y:1.05,z:0},anchor,runner,1/60,false);
+  assert.ok(returned.x<0 && returned.z>0);
+  const pulled=stepCoinAttraction(anchor,anchor,runner,1/60,true);
+  assert.ok(pulled.x>anchor.x && pulled.z<anchor.z);
 });
 test('saves coins and records across a fresh load', () => {
   const data = new Map(); const storage = { getItem: k => data.get(k), setItem: (k,v) => data.set(k,v) };
