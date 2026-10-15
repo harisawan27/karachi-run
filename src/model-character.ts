@@ -16,7 +16,10 @@ export class ModelCharacter {
   root:TransformNode;body:TransformNode;shadow:Mesh;ready:Promise<void>;phase=0;bones:Bone[]=[];source='';
   private surfaces:{mesh:Mesh;points:number[];indices:number[];weights:number[]}[]=[];
   private gait=0;private landing=0;private lastX=0;
-  land(){this.landing=1;}
+  private squashFactor=1;private squashTarget=1;private squashDuration=0;
+  squash(factor=.78,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
+  stretch(factor=1.15,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
+  land(){this.landing=1;this.squash(.80,.14);}
   dispose(){this.root.dispose(false,true);this.shadow.dispose();this.snack?.dispose(false,true);}
   private armMask:Uint8Array|null=null;
   private nativeJoints:{node:TransformNode;rest:Quaternion;axisX:Vector3;axisZ:Vector3;name:string;side:number}[]=[];
@@ -79,37 +82,89 @@ export class ModelCharacter {
     for(let v=0;v<p.length/3;v+=Math.max(1,Math.floor(p.length/3/900))){points.push(p[v*3],p[v*3+1],p[v*3+2]);sampleIndices.push(...indices.slice(v*4,v*4+4));sampleWeights.push(...weights.slice(v*4,v*4+4));}
     this.surfaces.push({mesh,points,indices:sampleIndices,weights:sampleWeights});
   }
-  animate(t:number,running:boolean,y:number,slide:boolean,speed=14,dt=.016,rollRemaining=0){
-    this.gait+=((running?1:0)-this.gait)*(1-Math.exp(-dt*12));const moving=this.gait>.01;
-    if(moving)this.phase+=this.gait*dt*(13.5+Math.max(0,speed-14)*.22);const cycle=this.phase,airborne=this.source==='pakistani_boy.glb'?this.w.airborne:y>.12;
+  animate(t:number,running:boolean,y:number,slide:boolean,speed=14,dt=.016,rollRemaining=0,boardRiding=false){
+    this.gait+=((running?1:0)-this.gait)*(1-Math.exp(-dt*12));const moving=this.gait>.01&&!boardRiding;
+    if(moving)this.phase+=this.gait*dt*(16.0+Math.max(0,speed-14)*.26);const cycle=this.phase,airborne=this.source==='pakistani_boy.glb'?this.w.airborne:y>.12;
     this.root.position.y=y;
     const roll=slide?Math.max(0,Math.min(1,1-rollRemaining/.68)):0;
     this.landing*=Math.exp(-dt*13);const lateral=(this.root.position.x-this.lastX)/Math.max(dt,.001);this.lastX=this.root.position.x;
-    this.body.scaling.setAll(1);
-    this.body.rotation.set(slide?Math.PI*2*(roll*roll*(3-2*roll)):this.gait*.12+this.landing*.12,running&&!slide?Math.sin(cycle)*.035:0,running&&!slide?Math.max(-.2,Math.min(.2,-lateral*.018))+Math.sin(cycle)*.018:0);
-    this.body.position.set(0,running?Math.abs(Math.sin(cycle))*.075:Math.sin(t*1.7)*.009,0);
+    if(this.squashDuration>0){
+      this.squashDuration-=dt;
+      this.squashFactor+=(this.squashTarget-this.squashFactor)*(1-Math.exp(-dt*28));
+      if(this.squashDuration<=0)this.squashTarget=1;
+    }else{
+      this.squashFactor+=(1-this.squashFactor)*(1-Math.exp(-dt*18));
+    }
+    const sY=this.squashFactor;
+    const sXZ=Math.sqrt(1/Math.max(.2,sY));
+    this.body.scaling.set(sXZ,sY,sXZ);
+    const fwdLean=slide?0:boardRiding?.08:this.gait*.22+this.landing*.14;
+    this.body.rotation.set(
+      slide?Math.PI*2*(roll*roll*(3-2*roll)):fwdLean,
+      boardRiding?.35:running&&!slide?Math.sin(cycle)*.07:0,
+      running&&!slide?Math.max(-.25,Math.min(.25,-lateral*.024))+(boardRiding?0:Math.sin(cycle)*.025):0
+    );
+    const stepHop=running&&!boardRiding&&!slide?Math.abs(Math.sin(cycle))*.10:boardRiding?Math.sin(t*8.5)*.02:Math.sin(t*1.7)*.009;
+    const slideDrop=slide?-0.42*(1-Math.abs(roll-.5)*2):0;
+    this.body.position.set(0,stepHop+slideDrop,0);
     for(const joint of this.nativeJoints){const n=joint.name;const wave=Math.sin(cycle+(n.includes('right')?Math.PI:0));let pitch=0,lower=0;
-      if(/upleg/.test(n))pitch=slide?-2.15:airborne?-.85:wave*.78*this.gait;
-      else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=slide?2.55:airborne?1.3:(.12+Math.max(0,-wave)*1.35)*this.gait;
-      else if(/forearm/.test(n))pitch=slide?-1.9:-.35-.8*this.gait;
-      else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.3;pitch=slide?-.9:-wave*.65*this.gait;}
-      else if(/foot/.test(n))pitch=slide?-.35:-wave*.18*this.gait;
-      else if(/spine/.test(n))pitch=slide?.45:.035*this.gait+this.landing*.04;
+      if(boardRiding&&!slide){
+        if(/upleg/.test(n))pitch=-.22;
+        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=.48;
+        else if(/forearm/.test(n))pitch=-.75;
+        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.50;pitch=-.42;}
+        else if(/foot/.test(n))pitch=-.16;
+        else if(/spine/.test(n))pitch=.10;
+      }else if(slide){
+        if(/upleg/.test(n))pitch=-2.45;
+        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=2.85;
+        else if(/forearm/.test(n))pitch=-2.25;
+        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.15;pitch=-1.35;}
+        else if(/foot/.test(n))pitch=-.38;
+        else if(/spine/.test(n))pitch=.98;
+      }else if(airborne){
+        const isRight=n.includes('right');
+        if(/upleg/.test(n))pitch=isRight?-1.35:.50;
+        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=isRight?1.85:.40;
+        else if(/forearm/.test(n))pitch=-.95;
+        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.55;pitch=-.60;}
+        else if(/foot/.test(n))pitch=-.20;
+        else if(/spine/.test(n))pitch=.22;
+      }else{
+        if(/upleg/.test(n))pitch=wave*1.12*this.gait;
+        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=(.22+Math.max(0,-wave)*1.85)*this.gait;
+        else if(/forearm/.test(n))pitch=(-1.50+Math.sin(cycle)*.30)*this.gait;
+        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.35;pitch=-wave*1.15*this.gait;}
+        else if(/foot/.test(n))pitch=-wave*.32*this.gait;
+        else if(/spine/.test(n))pitch=.16*this.gait+this.landing*.08;
+      }
       if(this.w.mode==='intro'&&this.source==='pakistani_boy.glb'&&n.includes('right')){if(/forearm/.test(n))pitch=-1.7;else if(/arm/.test(n))pitch=-.65;}
       joint.node.rotationQuaternion=Quaternion.RotationAxis(joint.axisX,pitch).multiply(Quaternion.RotationAxis(joint.axisZ,lower)).multiply(joint.rest);
     }
     this.bones.forEach((b,i)=>{const n=i%10;let a=0;
-      if(moving&&!slide){
-        if(n===1||n===3)a=Math.sin(cycle+(n===3?Math.PI:0))*.70-.10;
-        if(n===2||n===4)a=.15+Math.max(0,-Math.sin(cycle+(n===4?Math.PI:0)))*1.18;
-        if(n===5||n===7)a=Math.sin(cycle+(n===5?Math.PI:0))*.60;
-        if(n===6||n===8)a=-1.05+Math.sin(cycle+(n===8?Math.PI:0))*.30;
-        if(n===9)a=.05+Math.sin(cycle*2)*.025;
-        if(airborne){if(n===1)a=-.75;if(n===3)a=.25;if(n===2||n===4)a=1.05;if(n===5||n===7)a=-.6;}
+      if(boardRiding&&!slide){
+        if(n===1||n===3)a=-.22;
+        if(n===2||n===4)a=.48;
+        if(n===5||n===7)a=-.48;
+        if(n===6||n===8)a=-.82;
+        if(n===9)a=.10;
+      }else if(slide){
+        if(n===1||n===3)a=-2.45;
+        if(n===2||n===4)a=2.85;
+        if(n===5||n===7)a=-1.25;
+        if(n===6||n===8)a=-2.05;
+        if(n===9)a=1.35;
+      }else if(airborne){
+        if(n===1)a=-1.30;if(n===3)a=.45;if(n===2)a=1.80;if(n===4)a=.38;if(n===5||n===7)a=-.70;if(n===6||n===8)a=-.95;if(n===9)a=.22;
+      }else if(moving){
+        if(n===1||n===3)a=Math.sin(cycle+(n===3?Math.PI:0))*1.08-.12;
+        if(n===2||n===4)a=.24+Math.max(0,-Math.sin(cycle+(n===4?Math.PI:0)))*1.85;
+        if(n===5||n===7)a=Math.sin(cycle+(n===5?Math.PI:0))*1.05;
+        if(n===6||n===8)a=-1.45+Math.sin(cycle+(n===8?Math.PI:0))*.30;
+        if(n===9)a=.15+Math.sin(cycle*2)*.04;
       }
-      if(slide){if(n===1||n===3)a=-1.65;if(n===2||n===4)a=2.25;if(n===5||n===7)a=-.95;if(n===6||n===8)a=-1.45;if(n===9)a=1.15;}
-      if(!slide)a*=this.gait;
-      const twist=running&&!slide&&n===0?Math.sin(cycle)*.055:running&&!slide&&n===9?-Math.sin(cycle)*.07:0;
+      if(!slide&&!boardRiding&&!airborne)a*=this.gait;
+      const twist=running&&!slide&&!boardRiding&&n===0?Math.sin(cycle)*.09:running&&!slide&&!boardRiding&&n===9?-Math.sin(cycle)*.11:0;
       const relaxedArmRoll=n===6?1.22:n===8?-1.22:0;
       b.setRotationQuaternion(Quaternion.RotationYawPitchRoll(twist,a,relaxedArmRoll*(1-this.gait)));
     });

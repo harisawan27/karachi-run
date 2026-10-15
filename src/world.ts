@@ -28,8 +28,8 @@ const signTexts = [
 ];
 export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
-  chunks: TransformNode[] = []; runner: Character; pursuer: Character; landmark: TransformNode; skyline:TransformNode|null=null; city:CityRoute; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
-  groundHeight=0;airborne=false;chaseVisible=true;private chaseOpacity=1;private cameraElevation=0;
+  chunks: TransformNode[] = []; runner: Character; pursuer: Character; cruiserBoard: TransformNode; landmark: TransformNode; skyline:TransformNode|null=null; city:CityRoute; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
+  groundHeight=0;airborne=false;chaseVisible=true;boardActive=false;private chaseOpacity=1;private cameraElevation=0;private shakeIntensity=0;private shakeDuration=0;
   assets:LocalAssets;
   constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
@@ -46,6 +46,7 @@ export class KarachiWorld {
     this.landmark=this.makeMazar();
     this.runner=new Character(this,false,runnerSource);this.runner.root.position.set(0,0,0);
     this.pursuer=new Character(this,true);this.pursuer.root.position.set(0,0,-6);
+    this.cruiserBoard=this.makeCruiserBoard();
     this.assets=new LocalAssets(this);
     this.city=new CityRoute(this);this.city.update(0,0);
     window.addEventListener('resize',()=>this.engine.resize());
@@ -216,6 +217,87 @@ export class KarachiWorld {
     }
     this.merge(root);return root;
   }
+  makeCruiserBoard() {
+    const root=new TransformNode('cruiser board',this.scene);
+    // Aerodynamic main chassis (Sleek contoured hull)
+    this.box('cruiser chassis lower',.86,.05,2.05,0,.025,0,'#103936',root);
+    this.box('cruiser main deck',.82,.06,1.95,0,.06,0,'#175651',root);
+    this.box('cruiser grip deck',.70,.02,1.70,0,.095,0,'#0d2826',root);
+
+    // Chrome perimeter rub-rails & side bumper trim
+    for(const s of [-1,1]){
+      this.box('cruiser side bumper',.04,.07,1.92,s*.42,.055,0,'#d9e2ec',root);
+      this.box('cruiser gold side pinstripe',.025,.02,1.84,s*.39,.092,0,'#ffd700',root);
+      this.box('cruiser neon side edge',.015,.03,1.60,s*.435,.04,0,'#00f0ff',root);
+    }
+
+    // Chiseled aerodynamic front nose with upturned angle
+    const nose=this.box('cruiser nose wedge',.80,.06,.35,0,.08,1.05,'#175651',root);
+    nose.rotation.x=-0.16;
+    const noseLip=this.box('cruiser nose chrome lip',.82,.035,.08,0,.105,1.20,'#e2e8f0',root);
+    noseLip.rotation.x=-0.16;
+    for(const s of [-1,1]){
+      const lamp=this.box('nose projector light',.12,.04,.04,s*.24,.09,1.18,'#00f0ff',root);
+      lamp.rotation.x=-0.16;
+      const lm=this.mat('headlight cyan','#00f0ff');
+      lm.emissiveColor=Color3.FromHexString('#00f0ff');
+      lamp.material=lm;
+    }
+
+    // Raised kicktail & aerodynamic rear stabilizer spoiler
+    const tail=this.box('cruiser kicktail deck',.80,.06,.32,0,.08,-1.02,'#175651',root);
+    tail.rotation.x=0.18;
+    const spoiler=this.box('cruiser chrome wing',.86,.035,.09,0,.13,-1.16,'#e2e8f0',root);
+    spoiler.rotation.x=0.18;
+    for(const s of [-1,1]){
+      const fin=this.box('rear winglet',.03,.08,.18,s*.42,.13,-1.10,'#ffd700',root);
+      fin.rotation.x=0.18;
+    }
+
+    // Dual 24K Gold center racing stripes
+    for(const s of [-1,1]){
+      this.box('gold racing stripe',.04,.015,1.82,s*.09,.098,0,'#ffd700',root);
+    }
+
+    // Authentic Karachi Truck-Art Medallions & Geometric Rosettes
+    for(let z=-0.65;z<=0.65;z+=0.32){
+      const diamond=this.box('chamak patti diamond',.14,.02,.14,0,.102,z,'#e63946',root);
+      diamond.rotation.y=Math.PI/4;
+      const core=this.box('diamond gold core',.06,.025,.06,0,.105,z,'#ffcc00',root);
+      core.rotation.y=Math.PI/4;
+    }
+    const shield=this.box('cruiser emblem shield',.22,.025,.22,0,.103,0,'#ffd700',root);
+    shield.rotation.y=Math.PI/4;
+    const shieldRuby=this.box('shield ruby star',.12,.03,.12,0,.106,0,'#d90429',root);
+    shieldRuby.rotation.y=Math.PI/4;
+
+    // Dual High-Output Levitation Thruster Pods (Underbody)
+    for(const z of [-0.68,0.68]){
+      this.cyl('thruster housing',.42,.06,0,-.01,z,'#162326',root,undefined,16);
+      this.cyl('thruster outer bezel',.46,.025,0,-.005,z,'#ffd700',root,undefined,16);
+      const glow=this.cyl('thruster plasma core',.34,.04,0,-.025,z,'#00f0ff',root,undefined,16);
+      const gm=this.mat('thruster cyan plasma','#00f0ff');
+      gm.emissiveColor=Color3.FromHexString('#00f0ff');
+      glow.material=gm;
+      this.cyl('turbine spinner',.12,.05,0,-.03,z,'#e2e8f0',root,.02,12);
+    }
+
+    // Luminous Anti-Gravity Underglow Field (neon ground wash)
+    const underglow=MeshBuilder.CreatePlane('cruiser underglow aura',{width:.96,height:2.1},this.scene);
+    underglow.rotation.x=Math.PI/2;
+    underglow.position.y=-.035;
+    const ugMat=new StandardMaterial('underglow neon aura',this.scene);
+    ugMat.diffuseColor=Color3.FromHexString('#00f0ff');
+    ugMat.emissiveColor=Color3.FromHexString('#00e5ff');
+    ugMat.specularColor=Color3.Black();
+    ugMat.alpha=0.55;
+    underglow.material=ugMat;
+    underglow.parent=root;
+
+    this.merge(root);root.setEnabled(false);return root;
+  }
+  setBoardActive(active:boolean){this.boardActive=active;this.cruiserBoard.setEnabled(active);}
+  shake(intensity=.2,duration=.25){this.shakeIntensity=Math.max(this.shakeIntensity,intensity);this.shakeDuration=duration;}
   async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.root.dispose();old.shadow.dispose();this.runner=next;}
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
@@ -223,18 +305,36 @@ export class KarachiWorld {
     for(const c of this.chunks){c.position.z-=distanceDelta;if(c.position.z< -48)c.position.z+=216;}
     this.city.update(this.travel,this.time);this.assets.update(this.travel);
     const running=this.mode==='running',caught=this.mode==='crashed'||this.mode==='over';
-    this.runner.animate(this.time,running,playerY,sliding,this.speed,dt,this.rollRemaining);
+    this.runner.animate(this.time,running,playerY,sliding,this.speed,dt,this.rollRemaining,this.boardActive);
     this.chaseOpacity+=((this.chaseVisible?1:0)-this.chaseOpacity)*(1-Math.exp(-dt*8));this.pursuer.root.setEnabled(this.chaseOpacity>.01);this.pursuer.shadow.setEnabled(this.chaseOpacity>.01);for(const mesh of this.pursuer.root.getChildMeshes())mesh.visibility=this.chaseOpacity;
     this.pursuer.animate(this.time+.15,running&&!this.chaserBlocked,0,false,this.speed,dt);
     this.runner.root.rotation.y+=(playing&&!caught?0:Math.PI-this.runner.root.rotation.y)*(playing&&!caught?0:Math.min(1,dt*6));
     if(running)this.runner.root.rotation.y*=Math.exp(-dt*9);
     this.pursuer.root.rotation.y=caught||!playing?Math.PI:0;
     if(!playing)this.pursuer.root.position.z+=(-2-this.pursuer.root.position.z)*Math.min(1,dt*4);
+    if(this.boardActive){
+      const hoverBob=Math.sin(this.time*8.5)*.035;
+      this.cruiserBoard.position.set(this.runner.root.position.x,playerY+.06+hoverBob,this.runner.root.position.z);
+      this.cruiserBoard.rotation.y=this.runner.root.rotation.y+.30;
+      this.cruiserBoard.rotation.z=-this.runner.root.position.x*.042;
+      this.cruiserBoard.rotation.x=sliding?0:0.04;
+    }
+    let sx=0,sy=0;
+    if(this.shakeDuration>0){
+      this.shakeDuration-=dt;
+      sx=(Math.random()-.5)*this.shakeIntensity;
+      sy=(Math.random()-.5)*this.shakeIntensity;
+      this.shakeIntensity*=Math.exp(-dt*7);
+    }
     this.cameraElevation+=(this.groundHeight-this.cameraElevation)*(1-Math.exp(-dt*5));
-    const desired=playing?new Vector3(this.runner.root.position.x*.1,5.4+this.cameraElevation*.7,-10.8):new Vector3(-4.1,7,-14);
+    const desired=playing?new Vector3(this.runner.root.position.x*.1+sx,5.4+this.cameraElevation*.7+sy,-10.8):new Vector3(-4.1,7,-14);
     const factor=1-Math.exp(-dt*4);this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const target=playing?new Vector3(this.runner.root.position.x*.08,2.0+this.cameraElevation*.7,18):new Vector3(1,1.8,27);
+    const target=playing?new Vector3(this.runner.root.position.x*.08+sx*.5,2.0+this.cameraElevation*.7+sy*.5,18):new Vector3(1,1.8,27);
     this.camera.setTarget(target);this.camera.fov=(innerWidth<innerHeight?.93:.87)+(running?Math.min(.10,(this.speed-14)*.006):0);
+    if(playing){
+      const lateralDist=this.runner.root.position.x;
+      this.camera.rotation.z+=(-lateralDist*.012-this.camera.rotation.z)*(1-Math.exp(-dt*10));
+    }
     if(!playing)this.pursuer.root.position.x+=(-1.15-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
   }
 }
