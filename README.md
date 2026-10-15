@@ -6,6 +6,14 @@ Karachi Run is an independent project. It uses familiar three-lane endless-runne
 
 > **Project status:** playable browser prototype / beta foundation. Runs, coins, settings, missions, character selection, and the store are implemented in the browser. The project does not currently provide accounts, server-backed saves, online leaderboards, real-money purchases, advertising, or a published Android/iOS app. See [LAUNCH-PLAN.md](LAUNCH-PLAN.md) for the current release gates.
 
+### Phase 1: game feel and movement polish — complete
+
+Phase 1 tightens the moment-to-moment run without changing the route or starting the later roadmap phases. It includes responsive lane changes, a 160 ms jump input buffer for landing and ramp transitions, controlled run animation cadence as speed rises, coin collection feedback, and brief camera shake on a graze, board break, or hard landing. Coins keep their route positions when no magnet is active; the Coin Magnet is the only effect that pulls them toward Haris, and coins return smoothly to their route if the magnet runs out mid-pull.
+
+The Karachi Cruiser is a player-activated board shield, not a board pickup placed on the track. During a run, press **Space**, **B**, or **Enter** on a keyboard, or double-tap on a touchscreen. The visible board appears under the runner for up to 25 seconds and absorbs one collision or stumble. Breaking on a hit starts a 20-second cooldown and gives a short 1.8-second grace window; letting its timer expire starts a 15-second cooldown. The HUD shows the remaining active time.
+
+Coin pickup also pulses the coin counter and plays the pickup sound. Phase 1 does not include coin spark particles or a coin flying to the HUD. The later audio, progression, and launch phases remain future work.
+
 ## What is in the game
 
 - A continuously looping route through eight Karachi-inspired districts: Saddar Bazaar, Empress Market, Mazar-e-Quaid, Old Town Streets, Merewether Tower, Clifton Boulevard, Teen Talwar, and Sea View.
@@ -25,7 +33,8 @@ Prices and balance are prototype values and may change. The rupee symbol is part
 | Action | Keyboard | Touch |
 | --- | --- | --- |
 | Move one lane left or right | `←` / `→` or `A` / `D` | Swipe left or right; on-screen arrows are also available |
-| Jump | `↑`, `W`, or `Space` | Swipe up or tap the jump button |
+| Jump | `↑` or `W` | Swipe up or tap the jump button |
+| Activate Karachi Cruiser board | `Space`, `B`, or `Enter` | Double-tap during a run |
 | Roll / slide | `↓` or `S` | Swipe down or tap the roll button |
 | Pause or resume | `Esc` or `P` | Pause button during a run |
 
