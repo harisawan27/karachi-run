@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@babylonjs/core": "^8.0.0",
-    "@babylonjs/loaders": "^8.56.2"
+    "@babylonjs/loaders": "^8.56.2",
+    "@neondatabase/auth": "0.6.0-beta",
+    "@neondatabase/postgrest-js": "0.2.0-beta"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.0",
