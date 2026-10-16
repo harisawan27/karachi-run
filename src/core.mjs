@@ -43,6 +43,28 @@ export function parseSave(raw) {
     return { version: 7, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), cruiserCharges: d.cruiserCharges === undefined ? 5 : safeInt(d.cruiserCharges), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, musicMuted: d.musicMuted === true, voiceMuted: d.voiceMuted === true, lowGraphics: d.lowGraphics === true, selectedCharacter, unlockedCharacters, powerLevels: { magnet: Math.min(5,safeInt(levels.magnet)), boost: Math.min(5,safeInt(levels.boost)), chai: Math.min(5,safeInt(levels.chai)), biryani: Math.min(5,safeInt(levels.biryani)), shoes: Math.min(5,safeInt(levels.shoes)) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress) };
   } catch { return { ...INITIAL_SAVE }; }
 }
+export function mergePlayerSaves(cloudValue, guestValue) {
+  const cloud = parseSave(JSON.stringify(cloudValue ?? {}));
+  const guest = parseSave(JSON.stringify(guestValue ?? {}));
+  const missionSource = guest.missionIndex > cloud.missionIndex ? guest : cloud;
+  const selectedCharacter = guest.selectedCharacter !== 'pakistani_boy.glb'
+    ? guest.selectedCharacter
+    : cloud.selectedCharacter;
+  return {
+    ...cloud,
+    coins: Math.max(cloud.coins, guest.coins),
+    wapsiTickets: Math.max(cloud.wapsiTickets, guest.wapsiTickets),
+    cruiserCharges: Math.max(cloud.cruiserCharges, guest.cruiserCharges),
+    best: Math.max(cloud.best, guest.best),
+    totalScore: Math.max(cloud.totalScore, guest.totalScore),
+    runs: Math.max(cloud.runs, guest.runs),
+    selectedCharacter,
+    unlockedCharacters: [...new Set([...cloud.unlockedCharacters, ...guest.unlockedCharacters])],
+    powerLevels: { magnet: Math.max(cloud.powerLevels.magnet, guest.powerLevels.magnet), boost: Math.max(cloud.powerLevels.boost, guest.powerLevels.boost), chai: Math.max(cloud.powerLevels.chai, guest.powerLevels.chai), biryani: Math.max(cloud.powerLevels.biryani, guest.powerLevels.biryani), shoes: Math.max(cloud.powerLevels.shoes, guest.powerLevels.shoes) },
+    missionIndex: Math.max(cloud.missionIndex, guest.missionIndex),
+    missionProgress: guest.missionIndex > cloud.missionIndex ? guest.missionProgress : cloud.missionIndex > guest.missionIndex ? cloud.missionProgress : Math.max(cloud.missionProgress, guest.missionProgress),
+  };
+}
 export function loadSave(storage) { try { return parseSave(storage.getItem(SAVE_KEY)); } catch { return { ...INITIAL_SAVE }; } }
 export function persistSave(storage, value) { try { storage.setItem(SAVE_KEY, JSON.stringify(value)); return true; } catch { return false; } }
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSave, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction, buyCruiserCharges, useCruiserCharge, POWER_DURATION, powerDuration, powerUpgradePrice, powerPickupChoice, powerPickupDelay, firstPowerPickupDistance, distanceAfterRunTime, scorePowerMultiplier, coinPowerValue, buyPowerUpgrade } from '../src/core.mjs';
+import { parseSave, mergePlayerSaves, persistSave, loadSave, SAVE_KEY, collides, makeRow, reviveCost, buyRevive, speedAtDistance, runCadence, stepCoinAttraction, buyCruiserCharges, useCruiserCharge, POWER_DURATION, powerDuration, powerUpgradePrice, powerPickupChoice, powerPickupDelay, firstPowerPickupDistance, distanceAfterRunTime, scorePowerMultiplier, coinPowerValue, buyPowerUpgrade } from '../src/core.mjs';
 import { routeAt, ROUTES, ROUTE_LENGTH } from '../src/routes.mjs';
 
 test('distance increases speed progressively with a safe maximum', () => {
@@ -61,6 +61,13 @@ test('coins stay on their route without magnet and only attract while active', (
   assert.ok(returned.x<0 && returned.z>0);
   const pulled=stepCoinAttraction(anchor,anchor,runner,1/60,true);
   assert.ok(pulled.x>anchor.x && pulled.z<anchor.z);
+});
+test('first account link merges guest progress into cloud without losing unlocks or upgrades', () => {
+  const cloud={...parseSave(null),coins:80,best:200,runs:1};
+  const guest={...parseSave(null),coins:450,wapsiTickets:2,best:950,totalScore:2300,runs:4,selectedCharacter:'imran.glb',unlockedCharacters:['pakistani_boy.glb','imran.glb'],powerLevels:{magnet:2,boost:1,chai:0,biryani:3,shoes:0},missionIndex:2,missionProgress:5};
+  const merged=mergePlayerSaves(cloud,guest);
+  assert.equal(merged.coins,450);assert.equal(merged.wapsiTickets,2);assert.equal(merged.best,950);assert.equal(merged.totalScore,2300);assert.equal(merged.runs,4);
+  assert.equal(merged.selectedCharacter,'imran.glb');assert.ok(merged.unlockedCharacters.includes('imran.glb'));assert.equal(merged.powerLevels.biryani,3);assert.equal(merged.missionIndex,2);assert.equal(merged.missionProgress,5);
 });
 test('saves coins and records across a fresh load', () => {
   const data = new Map(); const storage = { getItem: k => data.get(k), setItem: (k,v) => data.set(k,v) };
