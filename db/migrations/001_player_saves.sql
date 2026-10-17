@@ -1,12 +1,13 @@
 -- Karachi Run: one cloud save per authenticated player.
 -- Run this once in the Neon SQL Editor after enabling Neon Auth and the Data API.
--- Install Neon’s JWT claim helpers and the non-login role used by the Data API.
+-- Enable the Neon Data API in the console BEFORE running this migration.
+-- Neon must provision its own authenticated role; do not create it manually.
 create extension if not exists pg_session_jwt;
 
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'authenticated') then
-    create role authenticated nologin;
+    raise exception 'Enable the Neon Data API with Neon Auth first, then rerun this migration.';
   end if;
 end
 $$;

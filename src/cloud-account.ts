@@ -1,3 +1,4 @@
+import { createPlayerSaveStore } from './cloud-save.mjs';
 import { createInternalNeonAuth } from '@neondatabase/auth';
 import { BetterAuthVanillaAdapter } from '@neondatabase/auth/vanilla/adapters';
 import { NeonPostgrestClient, fetchWithToken } from '@neondatabase/postgrest-js';
@@ -36,6 +37,7 @@ function getDataApi() {
 export async function getCloudUser(): Promise<CloudUser | null> {
   if (!cloudIsConfigured()) return null;
   const result = await getAuth().adapter.getSession();
+  if (result.error) throw new Error(result.error.message || 'Your account session could not be restored.');
   const user = result?.data?.user;
   return user?.id ? { id: user.id, name: user.name ?? 'Karachi Runner', email: user.email ?? '', image: user.image } : null;
 }
@@ -56,19 +58,13 @@ export async function signInWithGoogle() {
 }
 
 export async function signOutCloud() {
-  if (auth) await auth.adapter.signOut();
+  if (auth) { const result = await auth.adapter.signOut(); if (result.error) throw new Error(result.error.message || 'Sign-out failed.'); }
 }
 
 export async function loadCloudSave(userId: string): Promise<PlayerSave | null> {
-  const { data, error } = await getDataApi().from('player_saves').select('save_data').eq('user_id', userId).maybeSingle();
-  if (error) throw error;
-  return (data?.save_data as PlayerSave | undefined) ?? null;
+  return createPlayerSaveStore(getDataApi()).load(userId);
 }
 
 export async function writeCloudSave(userId: string, save: PlayerSave) {
-  const { error } = await getDataApi().from('player_saves').upsert(
-    { user_id: userId, save_data: save, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id' },
-  );
-  if (error) throw error;
+  await createPlayerSaveStore(getDataApi()).write(userId, save);
 }

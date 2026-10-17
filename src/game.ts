@@ -30,26 +30,40 @@ type CloudSyncStatus='guest'|'syncing'|'saved'|'error';
 let cloudUser:CloudUser|null=null,cloudSaveTimer=0,cloudSyncWarning=false,cloudSetupError='',cloudSaveReady=false;
 let cloudSyncStatus:CloudSyncStatus='guest',localSaveRevision=0,cloudWriteRevision=0,cloudSaveQueue:Promise<void>=Promise.resolve();
 let cloudApi:typeof import('./cloud-account')|null=null;
+let cloudRetryTimer=0,cloudRetryDelay=2000,cloudAccountInitialization:Promise<void>|null=null;
+const pendingKey=(id:string)=>SAVE_KEY+'.pending.'+id;
 function cloudIsConfigured(){return Boolean(import.meta.env.VITE_NEON_AUTH_URL?.trim()&&import.meta.env.VITE_NEON_DATA_API_URL?.trim());}
 async function getCloudApi(){if(!cloudApi)cloudApi=await import('./cloud-account');return cloudApi;}
+function scheduleCloudRetry(){
+ if(cloudRetryTimer||!cloudIsConfigured())return;
+ cloudRetryTimer=window.setTimeout(()=>{cloudRetryTimer=0;void (cloudSaveReady&&cloudUser?flushCloudSave():initializeCloudAccount());},cloudRetryDelay);
+ cloudRetryDelay=Math.min(30000,cloudRetryDelay*2);
+}
 function toast(message:string){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=window.setTimeout(()=>$('toast').classList.add('hidden'),3000);}
 function refreshAccountButton(){
  const button=document.getElementById('account-button');
- if(button){button.classList.toggle('account-linked',Boolean(cloudUser));button.setAttribute('aria-label',cloudUser?`Account: ${cloudUser.name}`:'Sign in or view account');button.title=cloudUser?`Profile · ${cloudUser.name}`:'Sign in or view account';button.innerHTML=icons.profile;}
+ if(button){button.classList.toggle('account-linked',Boolean(cloudUser));button.classList.toggle('account-sync-error',cloudSyncStatus==='error');button.setAttribute('aria-label',cloudUser?`Account: ${cloudUser.name}`:'Sign in or view account');button.title=cloudSyncStatus==='error'?cloudSetupError:cloudUser?`Profile · ${cloudUser.name}`:'Sign in or view account';button.innerHTML=icons.profile;}
  const status=document.getElementById('account-sync');
  if(status){status.textContent=cloudSyncStatus==='saved'?'Cloud save is up to date':cloudSyncStatus==='syncing'?'Saving progress…':cloudSyncStatus==='error'?'Cloud sync needs attention':'Guest progress stays on this browser';status.classList.toggle('account-error',cloudSyncStatus==='error');}
 }
 async function flushCloudSave(){
  if(!cloudUser||!cloudSaveReady)return;
- window.clearTimeout(cloudSaveTimer);
- const owner=cloudUser.id,revision=++cloudWriteRevision;
+ window.clearTimeout(cloudSaveTimer);cloudSaveTimer=0;
+ const owner=cloudUser.id,revision=++cloudWriteRevision,localRevision=localSaveRevision;
  const snapshot=JSON.parse(JSON.stringify(saved)) as Record<string,unknown>;
+ try{storage?.setItem(pendingKey(owner),JSON.stringify(snapshot));}catch{}
  cloudSyncStatus='syncing';refreshAccountButton();
  cloudSaveQueue=cloudSaveQueue.catch(()=>{}).then(async()=>{
+  if(cloudUser?.id!==owner)return;
   const api=await getCloudApi();await api.writeCloudSave(owner,snapshot);
-  if(cloudUser?.id===owner&&revision===cloudWriteRevision){cloudSyncStatus='saved';cloudSyncWarning=false;cloudSetupError='';refreshAccountButton();}
+  if(cloudUser?.id===owner&&revision===cloudWriteRevision&&localRevision===localSaveRevision){
+   cloudSyncStatus='saved';cloudSyncWarning=false;cloudSetupError='';cloudRetryDelay=2000;
+   window.clearTimeout(cloudRetryTimer);cloudRetryTimer=0;
+   try{storage?.removeItem(pendingKey(owner));storage?.removeItem(GUEST_SAVE_KEY);}catch{}
+   refreshAccountButton();
+  }
  }).catch(error=>{
-  if(cloudUser?.id===owner){cloudSyncStatus='error';console.error('Neon cloud save failed',error);refreshAccountButton();if(!cloudSyncWarning){cloudSyncWarning=true;toast('Cloud sync failed. Your progress remains saved on this device.');}}
+  if(cloudUser?.id===owner){cloudSyncStatus='error';cloudSetupError=error instanceof Error?error.message:'The cloud save could not be confirmed.';scheduleCloudRetry();console.error('Neon cloud save failed',error);refreshAccountButton();if(!cloudSyncWarning){cloudSyncWarning=true;toast('Cloud sync failed. Your progress remains saved on this device.');}}
  });
  await cloudSaveQueue;
 }
@@ -57,31 +71,46 @@ function save(syncNow=false){
  localSaveRevision++;
  const ok=persistSave(storage,saved);
  if(!cloudUser&&storage){try{storage.setItem(GUEST_SAVE_KEY,JSON.stringify(saved));}catch{}}
- if(cloudUser&&cloudSaveReady){window.clearTimeout(cloudSaveTimer);if(syncNow)void flushCloudSave();else cloudSaveTimer=window.setTimeout(()=>void flushCloudSave(),650);}
+ if(cloudUser){try{storage?.setItem(pendingKey(cloudUser.id),JSON.stringify(saved));}catch{}}
+ if(cloudUser&&cloudSaveReady){
+  // Do not restart this timer for every coin: continuous play must not starve writes.
+  if(syncNow)void flushCloudSave();else if(!cloudSaveTimer)cloudSaveTimer=window.setTimeout(()=>void flushCloudSave(),650);
+ }else if(cloudIsConfigured()&&syncNow)void initializeCloudAccount();
  if(!ok&&!saveWarning){saveWarning=true;toast('Browser storage is unavailable. This session still works.');}
  return ok;
 }
-async function initializeCloudAccount(){
+function initializeCloudAccount(){
+ if(!cloudAccountInitialization)cloudAccountInitialization=restoreCloudAccount().finally(()=>{cloudAccountInitialization=null;});
+ return cloudAccountInitialization;
+}
+async function restoreCloudAccount(){
  if(!cloudIsConfigured()){refreshAccountButton();return;}
  const startingRevision=localSaveRevision,startingSave=parseSave(JSON.stringify(saved));
  try{
   const api=await getCloudApi();
   cloudUser=await api.getCloudUser();
-  if(!cloudUser){cloudSaveReady=true;cloudSyncStatus='guest';refreshAccountButton();return;}
-  cloudSyncStatus='syncing';refreshAccountButton();
+  if(!cloudUser){cloudSaveReady=false;cloudSyncStatus='guest';cloudSetupError='';refreshAccountButton();return;}
+  cloudSaveReady=false;cloudSyncStatus='syncing';refreshAccountButton();
   const remote=await api.loadCloudSave(cloudUser.id);
+  const pendingRaw=storage?.getItem(pendingKey(cloudUser.id));
   const guestRaw=storage?.getItem(GUEST_SAVE_KEY);
-  const guest=guestRaw?parseSave(guestRaw):localSaveRevision>startingRevision?parseSave(JSON.stringify(saved)):null;
-  saved=remote?(guest?mergePlayerSaves(remote,guest):parseSave(JSON.stringify(remote))):(guest??(localSaveRevision>startingRevision?parseSave(JSON.stringify(saved)):startingSave));
+  const latest=parseSave(JSON.stringify(saved));
+  // An unacknowledged account snapshot preserves purchases and spent balances on retry.
+  if(pendingRaw)saved=parseSave(pendingRaw);
+  else if(remote)saved=guestRaw?mergePlayerSaves(remote,parseSave(guestRaw)):parseSave(JSON.stringify(remote));
+  else saved=startingSave; // The current local save can be newer than the signup guest snapshot.
+  if(localSaveRevision>startingRevision)saved=guestRaw?mergePlayerSaves(saved,latest):latest;
   persistSave(storage,saved);updateRecords();cloudSaveReady=true;
   await flushCloudSave();
-  if((cloudSyncStatus as CloudSyncStatus)==='saved'&&guestRaw)storage?.removeItem(GUEST_SAVE_KEY);
  }catch(error){
   cloudSaveReady=false;cloudSyncStatus='error';cloudSetupError=error instanceof Error?error.message:'Neon account setup could not be reached.';
-  console.error('Neon account initialization failed',error);
+  console.error('Neon account initialization failed',error);scheduleCloudRetry();
  }finally{refreshAccountButton();}
 }
 void initializeCloudAccount();
+window.addEventListener('online',()=>{void (cloudSaveReady&&cloudUser?flushCloudSave():initializeCloudAccount());});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){if(cloudUser&&cloudSaveReady)void flushCloudSave();}else if(cloudSyncStatus==='error')void (cloudSaveReady&&cloudUser?flushCloudSave():initializeCloudAccount());});
+
 function updateRecords(){ $('bank').textContent=fmt(saved.coins);const ticketCount=document.getElementById('ticket-count');if(ticketCount)ticketCount.textContent=saved.wapsiTickets>0?String(saved.wapsiTickets):'';$('board-charge-count').textContent=String(saved.cruiserCharges);$('best').textContent=fmt(saved.best);$('runs').textContent=fmt(saved.runs);$('sound-button').innerHTML=saved.muted?icons.mute:icons.sound;$('sound-button').setAttribute('aria-label',saved.muted?'Turn effects on':'Mute effects');$('sound-button').setAttribute('aria-pressed',String(saved.muted));}
 updateRecords();
 class GameAudio {
@@ -162,7 +191,7 @@ function showAccount(){
  refreshAccountButton();
  const google=document.getElementById('account-google');if(google)google.onclick=async()=>{try{if(storage)storage.setItem(GUEST_SAVE_KEY,JSON.stringify(saved));const api=await getCloudApi();await api.signInWithGoogle();}catch(error){cloudSetupError=error instanceof Error?error.message:'Google sign-in could not start.';showAccount();}};
  const retry=document.getElementById('account-retry');if(retry)(retry as HTMLButtonElement).onclick=async()=>{(retry as HTMLButtonElement).disabled=true;cloudSetupError='';await initializeCloudAccount();showAccount();};
- const signout=document.getElementById('account-signout');if(signout)signout.onclick=async()=>{try{await flushCloudSave();const api=await getCloudApi();await api.signOutCloud();window.clearTimeout(cloudSaveTimer);cloudUser=null;cloudSaveReady=false;cloudSyncStatus='guest';cloudSetupError='';if(storage)storage.setItem(GUEST_SAVE_KEY,JSON.stringify(saved));persistSave(storage,saved);updateRecords();refreshAccountButton();showAccount();}catch{toast('Could not sign out. Try again.');}};
+ const signout=document.getElementById('account-signout');if(signout)signout.onclick=async()=>{try{await flushCloudSave();const api=await getCloudApi();await api.signOutCloud();window.clearTimeout(cloudSaveTimer);cloudSaveTimer=0;window.clearTimeout(cloudRetryTimer);cloudRetryTimer=0;cloudUser=null;cloudSaveReady=false;cloudSyncStatus='guest';cloudSetupError='';saved=parseSave(storage?.getItem(GUEST_SAVE_KEY)??null);persistSave(storage,saved);updateRecords();refreshAccountButton();showAccount();}catch{toast('Could not sign out. Try again.');}};
 }
 function showStore(tab='characters'){storeTab=tab;setActiveNav(tab==='characters'?'me':'shop');renderStore();}
 function setActiveNav(screen:string){document.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach(button=>button.classList.toggle('is-active',button.dataset.nav===screen));}
@@ -188,7 +217,7 @@ function buyTicket(count:number){const next=buyWapsiTickets(saved,count);if(!nex
 function buyBoard(count:number){const next=buyCruiserCharges(saved,count);if(!next){toast('Not enough coins for that Cruiser deal.');return;}saved=next;save();updateRecords();audio.power();renderStore();toast(`${count} Cruiser ${count===1?'ride':'rides'} added to your bag.`);}
 function showMissions(){setActiveNav('missions');const m=missionFor(saved.missionIndex),progress=Math.min(m.target,saved.missionProgress),ratio=Math.min(1,progress/m.target);showModal(`<div class="mission-screen"><div class="eyebrow">KARACHI CHALLENGE · ${String(saved.missionIndex+1).padStart(2,'0')}</div><div class="mission-emblem">🏆</div><h2>Street Mission</h2><p>One more run. One more reward.</p><article class="mission-card"><div class="mission-icon">✦</div><div class="mission-copy"><small>ACTIVE MISSION</small><b>${m.label}</b><span>${fmt(progress)} / ${fmt(m.target)} complete</span><div class="mission-progress"><i style="width:${ratio*100}%"></i></div></div><strong>+${m.reward}<small> COINS</small></strong></article><div class="mission-stats"><span>PERSONAL BEST <b>${fmt(saved.best)}</b></span><span>TOTAL RUNS <b>${fmt(saved.runs)}</b></span></div><button class="play-button" id="mission-run"><span>RUN THIS MISSION</span><span class="arrow">▶</span></button></div>`);$('mission-run').onclick=()=>{closeModal();opening();};}
 function showSettings(){showModal(`<div class="eyebrow">MAKE IT YOUR KARACHI</div><h2>Settings</h2><div class="settings-list"><div class="settings-choice"><div><b>Street effects</b><small>Coins, traffic, jumps and powers</small></div><button class="setting-toggle ${saved.muted?'off':''}" id="sound-toggle" aria-pressed="${!saved.muted}">${saved.muted?'OFF':'ON'}</button></div><div class="settings-choice"><div><b>Karachi beat</b><small>Pakistani percussion and plucked strings</small></div><button class="setting-toggle ${saved.musicMuted?'off':''}" id="music-toggle" aria-pressed="${!saved.musicMuted}">${saved.musicMuted?'OFF':'ON'}</button></div><div class="settings-choice"><div><b>Urdu voice quips</b><small>Uses an Urdu voice installed in your browser</small></div><button class="setting-toggle ${saved.voiceMuted?'off':''}" id="voice-toggle" aria-pressed="${!saved.voiceMuted}">${saved.voiceMuted?'OFF':'ON'}</button></div><div class="settings-choice"><div><b>Graphics</b><small>Choose quality for your device</small></div><select id="settings-quality"><option value="standard" ${saved.lowGraphics?'':'selected'}>High</option><option value="low" ${saved.lowGraphics?'selected':''}>Battery saver</option></select></div><div class="settings-choice"><div><b>Controls</b><small>Swipe lanes · jump · roll</small></div><span class="settings-readonly">TOUCH / KEYBOARD</span></div></div><button class="play-button" id="settings-done"><span>DONE</span><span class="arrow">✓</span></button>`);$('sound-toggle').onclick=()=>{saved.muted=!saved.muted;save();updateRecords();showSettings();};$('music-toggle').onclick=()=>{saved.musicMuted=!saved.musicMuted;save();if(saved.musicMuted)audio.stopMusic();else if(mode==='running')audio.startMusic();showSettings();};$('voice-toggle').onclick=()=>{saved.voiceMuted=!saved.voiceMuted;save();if(saved.voiceMuted&&'speechSynthesis'in window)speechSynthesis.cancel();showSettings();};$<HTMLSelectElement>('settings-quality').onchange=e=>{saved.lowGraphics=(e.target as HTMLSelectElement).value==='low';world.quality(saved.lowGraphics);save();};$('settings-done').onclick=closeModal;}
-function showResults(){showModal(`<div class="eyebrow">ANOTHER STORY FROM THE STREETS</div><h2>What a run.</h2><div class="modal-score">${fmt(score)}</div><div class="score-label">POINTS</div>${score>oldBest?'<p class="new-best">✦ NEW PERSONAL BEST</p>':'<p>Karachi has another run in you.</p>'}<div class="result-details"><div><strong><span class="coin-icon" aria-hidden="true"></span> ${fmt(runCoins)}</strong><small>COINS COLLECTED</small></div><div><strong>${fmt(distance)} m</strong><small>DISTANCE</small></div></div><p class="run-route-result">${routeAt(runStart+distance).name} · ${discovered.size} sights passed</p><button class="play-button" id="retry-button"><span>RUN IT BACK</span><span class="arrow">↗</span></button><button class="secondary" id="report-button">Save a problem report</button>`);$('retry-button').onclick=startRun;$('report-button').onclick=downloadRunReport;}
+function showResults(){showModal(`<div class="eyebrow">ANOTHER STORY FROM THE STREETS</div><h2>What a run.</h2><div class="modal-score">${fmt(score)}</div><div class="score-label">POINTS</div>${score>oldBest?'<p class="new-best">✦ NEW PERSONAL BEST</p>':'<p>Karachi has another run in you.</p>'}<div class="result-details"><div><strong><span class="coin-icon" aria-hidden="true"></span> ${fmt(runCoins)}</strong><small>COINS COLLECTED</small></div><div><strong>${fmt(distance)} m</strong><small>DISTANCE</small></div></div><p class="run-route-result">${routeAt(runStart+distance).name} · ${discovered.size} sights passed</p><button class="play-button" id="retry-button"><span>RUN IT BACK</span><span class="arrow">↗</span></button><button class="secondary" id="report-button">Save a problem report</button><p class="account-sync" id="account-sync"></p>`);refreshAccountButton();$('retry-button').onclick=startRun;$('report-button').onclick=downloadRunReport;}
 function downloadRunReport(){const blob=new Blob([JSON.stringify(runReport.snapshot())],{type:'application/json'});const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`karachi-run-report-${runSeed}.json`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Report download requested. Nothing was sent automatically.');}
 function home(){if(!world)return;audio.stopMusic();mode='menu';setGameUI(false);setActiveNav('home');closeModal();for(const id of ['game-hint','power-hud','zone-banner','resume-count'])$(id).classList.add('hidden');resetScene(selectedStart);updateRecords();$('play-button').focus({preventScroll:true});}
 function pause(){if(mode!=='running')return;audio.stopMusic();mode='paused';runReport.event('pause',elapsed);checkpoint();showModal(`<div class="eyebrow">TAKE A BREATHER</div><h2>City on pause.</h2><p>Your run is right where you left it.</p><div class="setting-row"><label for="quality-select">Graphics quality</label><select id="quality-select"><option value="standard" ${world.low?'':'selected'}>Standard</option><option value="low" ${world.low?'selected':''}>Battery saver</option></select></div><button class="play-button" id="resume-button"><span>KEEP RUNNING</span><span class="arrow">↗</span></button><button class="secondary" id="end-button">Finish this run</button>`);$('resume-button').onclick=resume;$('end-button').onclick=finish;$<HTMLSelectElement>('quality-select').onchange=e=>{saved.lowGraphics=(e.target as HTMLSelectElement).value==='low';world.quality(saved.lowGraphics);save();};}
