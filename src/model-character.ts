@@ -1,5 +1,6 @@
 import { CHARACTER_FILES } from './asset-manifest.mjs';
 import { runCadence } from './core.mjs';
+import { jointPose, sprintLift, ROLL_DURATION } from './runner-motion.mjs';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
@@ -15,18 +16,18 @@ import type { KarachiWorld } from './world';
 
 export class ModelCharacter {
   root:TransformNode;body:TransformNode;shadow:Mesh;ready:Promise<void>;phase=0;bones:Bone[]=[];source='';
-  private surfaces:{mesh:Mesh;points:number[];indices:number[];weights:number[]}[]=[];
-  private gait=0;private landing=0;private lastX=0;
+  private surfaces:{mesh:Mesh;points:number[];indices:number[];weights:number[];feet:number[]}[]=[];
+  private gait=0;private landing=0;private lastX=0;private lastY=0;private groundOffset=0;
   private squashFactor=1;private squashTarget=1;private squashDuration=0;
   squash(factor=.78,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
   stretch(factor=1.15,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
-  land(){this.landing=1;this.squash(.80,.14);}
+  land(){this.landing=1;this.squash(.96,.10);}
   dispose(){this.root.dispose(false,true);this.shadow.dispose();this.snack?.dispose(false,true);}
   private armMask:Uint8Array|null=null;
   private nativeJoints:{node:TransformNode;rest:Quaternion;axisX:Vector3;axisZ:Vector3;name:string;side:number}[]=[];
   private snack:TransformNode|null=null;
-  constructor(private w:KarachiWorld,police:boolean,runnerSource?:string){
-    this.root=new TransformNode(police?'Asim supplied GLB':'Imran supplied GLB',w.scene);this.body=new TransformNode('animated model',w.scene);this.body.parent=this.root;
+  constructor(private w:KarachiWorld,private police:boolean,runnerSource?:string){
+    this.root=new TransformNode(police?'Asim supplied GLB':'Imran supplied GLB',w.scene);this.body=new TransformNode('animated model',w.scene);this.body.parent=this.root;this.body.setPivotPoint(new Vector3(0,1.25,0));
     this.shadow=MeshBuilder.CreateDisc('model ground shadow',{radius:.58,tessellation:32},w.scene);this.shadow.rotation.x=Math.PI/2;this.shadow.position.y=.019;this.shadow.scaling.y=.7;this.shadow.material=w.mat('shadow','#3d5050');this.shadow.visibility=.36;
     this.source=runnerSource??CHARACTER_FILES[police?1:0];this.ready=this.load();
     if(!police){this.snack=new TransformNode('gola ganda',w.scene);const ice=MeshBuilder.CreateSphere('rose ice',{diameter:.18,segments:8},w.scene);ice.material=w.mat('rose ice','#e84d78');ice.parent=this.snack;const stick=MeshBuilder.CreateCylinder('ice stick',{height:.22,diameter:.025,tessellation:6},w.scene);stick.position.y=-.13;stick.material=w.mat('ice stick','#e3c592');stick.parent=this.snack;this.snack.setEnabled(false);}
@@ -40,10 +41,10 @@ export class ModelCharacter {
     const min=new Vector3(Infinity,Infinity,Infinity),max=new Vector3(-Infinity,-Infinity,-Infinity);
     for(const m of meshes){m.computeWorldMatrix(true);const b=m.getBoundingInfo().boundingBox;min.minimizeInPlace(b.minimumWorld);max.maximizeInPlace(b.maximumWorld);}
     const height=max.y-min.y,scale=2.86/height;container.scaling.setAll(scale);container.position.set(-(min.x+max.x)/2*scale,-min.y*scale,-(min.z+max.z)/2*scale);container.parent=this.body;
-    // The supplied meshes have no skin or clips. Add a small GPU skin in the existing bind pose.
+    // Use supplied skeletons when present; otherwise bind a small GPU skin to the static model.
     if(result.skeletons.length){
       for(const skeleton of result.skeletons)for(const bone of skeleton.bones){const node=bone.getTransformNode();if(!node)continue;node.computeWorldMatrix(true);const parent=node.parent as TransformNode|null;const inverse=parent?parent.computeWorldMatrix(true).clone().invert():Matrix.Identity();this.nativeJoints.push({node,rest:node.rotationQuaternion?.clone()??Quaternion.FromEulerVector(node.rotation),axisX:Vector3.TransformNormal(Vector3.Right(),inverse).normalize().scaleInPlace(inverse.determinant()<0?-1:1),axisZ:Vector3.TransformNormal(Vector3.Forward(),inverse).normalize().scaleInPlace(inverse.determinant()<0?-1:1),name:bone.name.toLowerCase(),side:node.getAbsolutePosition().x>=0?1:-1});}
-      for(const mesh of meshes){const p=mesh.getVerticesData(VertexBuffer.PositionKind),ix=mesh.getVerticesData(VertexBuffer.MatricesIndicesKind),wt=mesh.getVerticesData(VertexBuffer.MatricesWeightsKind);if(!p||!ix||!wt||!mesh.skeleton)continue;const points:number[]=[],indices:number[]=[],weights:number[]=[];for(let v=0;v<p.length/3;v+=Math.max(1,Math.floor(p.length/3/240))){points.push(...p.slice(v*3,v*3+3));indices.push(...ix.slice(v*4,v*4+4));weights.push(...wt.slice(v*4,v*4+4));}this.surfaces.push({mesh,points,indices,weights});}
+      for(const mesh of meshes){const p=mesh.getVerticesData(VertexBuffer.PositionKind),ix=mesh.getVerticesData(VertexBuffer.MatricesIndicesKind),wt=mesh.getVerticesData(VertexBuffer.MatricesWeightsKind);if(!p||!ix||!wt||!mesh.skeleton)continue;const points:number[]=[],indices:number[]=[],weights:number[]=[],feet:number[]=[];for(let v=0;v<p.length/3;v+=Math.max(1,Math.floor(p.length/3/240))){points.push(...p.slice(v*3,v*3+3));indices.push(...ix.slice(v*4,v*4+4));weights.push(...wt.slice(v*4,v*4+4));let footWeight=0;for(let j=0;j<4;j++)if(/foot|toe/i.test(mesh.skeleton.bones[ix[v*4+j]]?.name??''))footWeight+=wt[v*4+j];feet.push(footWeight>.25?1:0);}this.surfaces.push({mesh,points,indices,weights,feet});}
     }else for(const mesh of meshes)this.rig(mesh);
     for(const mesh of meshes){mesh.alwaysSelectAsActiveMesh=true;mesh.isPickable=false;}
   }
@@ -79,107 +80,74 @@ export class ModelCharacter {
       }
     }
     mesh.setVerticesData(VertexBuffer.MatricesIndicesKind,indices,false,4);mesh.setVerticesData(VertexBuffer.MatricesWeightsKind,weights,false,4);mesh.numBoneInfluencers=4;mesh.skeleton=skeleton;skeleton.prepare();this.bones.push(...bones);
-    const points:number[]=[],sampleIndices:number[]=[],sampleWeights:number[]=[];
-    for(let v=0;v<p.length/3;v+=Math.max(1,Math.floor(p.length/3/900))){points.push(p[v*3],p[v*3+1],p[v*3+2]);sampleIndices.push(...indices.slice(v*4,v*4+4));sampleWeights.push(...weights.slice(v*4,v*4+4));}
-    this.surfaces.push({mesh,points,indices:sampleIndices,weights:sampleWeights});
+    const points:number[]=[],sampleIndices:number[]=[],sampleWeights:number[]=[],footSamples:number[]=[];
+    for(let v=0;v<p.length/3;v+=Math.max(1,Math.floor(p.length/3/900))){points.push(p[v*3],p[v*3+1],p[v*3+2]);sampleIndices.push(...indices.slice(v*4,v*4+4));sampleWeights.push(...weights.slice(v*4,v*4+4));footSamples.push((p[v*3+1]-minY)/h<.14?1:0);}
+    this.surfaces.push({mesh,points,indices:sampleIndices,weights:sampleWeights,feet:footSamples});
   }
   animate(t:number,running:boolean,y:number,slide:boolean,speed=14,dt=.016,rollRemaining=0,boardRiding=false){
-    this.gait+=((running?1:0)-this.gait)*(1-Math.exp(-dt*12));const moving=this.gait>.01&&!boardRiding;
-    if(moving)this.phase+=this.gait*dt*runCadence(speed);const cycle=this.phase,airborne=this.source==='pakistani_boy.glb'?this.w.airborne:y>.12;
+    const blend=1-Math.exp(-dt*(slide?42:34));
+    this.gait+=((running?1:0)-this.gait)*(1-Math.exp(-dt*12));
+    const flying=!this.police&&this.w.flightActive,airborne=!this.police&&this.w.airborne;
+    const moving=this.gait>.01&&!boardRiding;
+    if(moving&&!airborne&&!slide)this.phase+=this.gait*dt*runCadence(speed);
+    const cycle=this.phase,verticalSpeed=(y-this.lastY)/Math.max(dt,.001);this.lastY=y;
+    const pose=slide?'roll':flying?'flight':boardRiding?'board':airborne?'jump':moving?'run':'idle';
     this.root.position.y=y;
-    const roll=slide?Math.max(0,Math.min(1,1-rollRemaining/.68)):0;
-    this.landing*=Math.exp(-dt*13);const lateral=(this.root.position.x-this.lastX)/Math.max(dt,.001);this.lastX=this.root.position.x;
-    if(this.squashDuration>0){
-      this.squashDuration-=dt;
-      this.squashFactor+=(this.squashTarget-this.squashFactor)*(1-Math.exp(-dt*28));
-      if(this.squashDuration<=0)this.squashTarget=1;
-    }else{
-      this.squashFactor+=(1-this.squashFactor)*(1-Math.exp(-dt*18));
-    }
-    const sY=this.squashFactor;
-    const sXZ=Math.sqrt(1/Math.max(.2,sY));
+    const roll=slide?Math.max(0,Math.min(1,1-rollRemaining/ROLL_DURATION)):0;
+    this.landing*=Math.exp(-dt*13);
+    const lateral=(this.root.position.x-this.lastX)/Math.max(dt,.001);this.lastX=this.root.position.x;
+    if(this.squashDuration>0){this.squashDuration-=dt;this.squashFactor+=(this.squashTarget-this.squashFactor)*blend;if(this.squashDuration<=0)this.squashTarget=1;}
+    else this.squashFactor+=(1-this.squashFactor)*blend;
+    const sY=Math.max(.94,Math.min(1.04,this.squashFactor)),sXZ=Math.sqrt(1/sY);
     this.body.scaling.set(sXZ,sY,sXZ);
-    const fwdLean=slide?0:boardRiding?.08:this.gait*.22+this.landing*.14;
-    this.body.rotation.set(
-      slide?Math.PI*2*(roll*roll*(3-2*roll)):fwdLean,
-      boardRiding?.35:running&&!slide?Math.sin(cycle)*.07:0,
-      running&&!slide?Math.max(-.25,Math.min(.25,-lateral*.024))+(boardRiding?0:Math.sin(cycle)*.025):0
-    );
-    const stepHop=running&&!boardRiding&&!slide?Math.abs(Math.sin(cycle))*.10:boardRiding?Math.sin(t*8.5)*.02:Math.sin(t*1.7)*.009;
-    const slideDrop=slide?-0.42*(1-Math.abs(roll-.5)*2):0;
-    this.body.position.set(0,stepHop+slideDrop,0);
-    for(const joint of this.nativeJoints){const n=joint.name;const wave=Math.sin(cycle+(n.includes('right')?Math.PI:0));let pitch=0,lower=0;
-      if(boardRiding&&!slide){
-        if(/upleg/.test(n))pitch=-.22;
-        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=.48;
-        else if(/forearm/.test(n))pitch=-.75;
-        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.50;pitch=-.42;}
-        else if(/foot/.test(n))pitch=-.16;
-        else if(/spine/.test(n))pitch=.10;
-      }else if(slide){
-        if(/upleg/.test(n))pitch=-2.45;
-        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=2.85;
-        else if(/forearm/.test(n))pitch=-2.25;
-        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.15;pitch=-1.35;}
-        else if(/foot/.test(n))pitch=-.38;
-        else if(/spine/.test(n))pitch=.98;
-      }else if(airborne){
-        const isRight=n.includes('right');
-        if(/upleg/.test(n))pitch=isRight?-1.35:.50;
-        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=isRight?1.85:.40;
-        else if(/forearm/.test(n))pitch=-.95;
-        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.55;pitch=-.60;}
-        else if(/foot/.test(n))pitch=-.20;
-        else if(/spine/.test(n))pitch=.22;
-      }else{
-        if(/upleg/.test(n))pitch=wave*1.12*this.gait;
-        else if(/leg/.test(n)&&!/(end|root)/.test(n))pitch=(.22+Math.max(0,-wave)*1.85)*this.gait;
-        else if(/forearm/.test(n))pitch=(-1.50+Math.sin(cycle)*.30)*this.gait;
-        else if(/arm/.test(n)&&!/(forearm|end)/.test(n)){lower=-joint.side*1.35;pitch=-wave*1.15*this.gait;}
-        else if(/foot/.test(n))pitch=-wave*.32*this.gait;
-        else if(/spine/.test(n))pitch=.16*this.gait+this.landing*.08;
+    const lean=slide?Math.PI*2*roll:flying?.025:boardRiding?.06:this.gait*.145+this.landing*.055;
+    const bank=running&&!slide?Math.max(-.15,Math.min(.15,-lateral*.015)):0;
+    const bodyTarget=Quaternion.FromEulerAngles(lean,boardRiding?.22:pose==='run'?Math.sin(cycle)*.035+Math.max(-.12,Math.min(.12,lateral*.012)):0,bank);
+    this.body.rotationQuaternion=Quaternion.Slerp(this.body.rotationQuaternion??Quaternion.Identity(),bodyTarget,blend);
+    const stepHop=pose==='run'?0:pose==='board'?Math.sin(t*8.5)*.014:pose==='idle'?Math.sin(t*1.7)*.007:0;
+    this.body.position.set(0,stepHop,0);
+    for(const joint of this.nativeJoints){
+      const angles=jointPose(joint.name,joint.side,cycle,pose,this.gait,this.landing,verticalSpeed);
+      if(this.w.mode==='intro'&&this.w.introProgress<.50&&this.source==='pakistani_boy.glb'&&joint.name.includes('right')){
+        if(/forearm/.test(joint.name))angles.pitch=-1.7;else if(/arm/.test(joint.name))angles.pitch=-.65;
       }
-      if(this.w.mode==='intro'&&this.source==='pakistani_boy.glb'&&n.includes('right')){if(/forearm/.test(n))pitch=-1.7;else if(/arm/.test(n))pitch=-.65;}
-      joint.node.rotationQuaternion=Quaternion.RotationAxis(joint.axisX,pitch).multiply(Quaternion.RotationAxis(joint.axisZ,lower)).multiply(joint.rest);
+      // Recompute hinges in the current parent frame. Lowering a T-pose arm
+      // rotates its elbow's bind-frame hinge; a cached axis twists the forearm.
+      let target=joint.rest;
+      if(Math.abs(angles.pitch)+Math.abs(angles.roll)+Math.abs(angles.yaw)>.00001){
+      const parent=joint.node.parent as TransformNode|null;
+      const inverse=parent?parent.computeWorldMatrix(true).clone().invert():Matrix.Identity();
+      const frame=this.body.computeWorldMatrix(true),handed=inverse.determinant()<0?-1:1;
+      const axis=(direction:Vector3)=>Vector3.TransformNormal(Vector3.TransformNormal(direction,frame),inverse).normalize().scaleInPlace(handed);
+      target=Quaternion.RotationAxis(axis(Vector3.Right()),angles.pitch).multiply(Quaternion.RotationAxis(axis(Vector3.Forward()),angles.roll)).multiply(Quaternion.RotationAxis(axis(Vector3.Up()),angles.yaw)).multiply(joint.rest);
+      }
+      joint.node.rotationQuaternion=Quaternion.Slerp(joint.node.rotationQuaternion??joint.rest,target,blend);
     }
-    this.bones.forEach((b,i)=>{const n=i%10;let a=0;
-      if(boardRiding&&!slide){
-        if(n===1||n===3)a=-.22;
-        if(n===2||n===4)a=.48;
-        if(n===5||n===7)a=-.48;
-        if(n===6||n===8)a=-.82;
-        if(n===9)a=.10;
-      }else if(slide){
-        if(n===1||n===3)a=-2.45;
-        if(n===2||n===4)a=2.85;
-        if(n===5||n===7)a=-1.25;
-        if(n===6||n===8)a=-2.05;
-        if(n===9)a=1.35;
-      }else if(airborne){
-        if(n===1)a=-1.30;if(n===3)a=.45;if(n===2)a=1.80;if(n===4)a=.38;if(n===5||n===7)a=-.70;if(n===6||n===8)a=-.95;if(n===9)a=.22;
-      }else if(moving){
-        if(n===1||n===3)a=Math.sin(cycle+(n===3?Math.PI:0))*1.08-.12;
-        if(n===2||n===4)a=.24+Math.max(0,-Math.sin(cycle+(n===4?Math.PI:0)))*1.85;
-        if(n===5||n===7)a=Math.sin(cycle+(n===5?Math.PI:0))*1.05;
-        if(n===6||n===8)a=-1.45+Math.sin(cycle+(n===8?Math.PI:0))*.30;
-        if(n===9)a=.15+Math.sin(cycle*2)*.04;
-      }
-      if(!slide&&!boardRiding&&!airborne)a*=this.gait;
-      const twist=running&&!slide&&!boardRiding&&n===0?Math.sin(cycle)*.09:running&&!slide&&!boardRiding&&n===9?-Math.sin(cycle)*.11:0;
-      const relaxedArmRoll=n===6?1.22:n===8?-1.22:0;
-      b.setRotationQuaternion(Quaternion.RotationYawPitchRoll(twist,a,relaxedArmRoll*(1-this.gait)));
+    const names=['hips','leftupleg','leftleg','rightupleg','rightleg','leftarm','leftforearm','rightarm','rightforearm','spine'];
+    this.bones.forEach((bone,i)=>{
+      const n=i%10,angles=jointPose(names[n],n===1||n===2||n===5||n===6?-1:1,cycle,pose,this.gait,this.landing,verticalSpeed,false);
+      const relaxed=pose==='idle'?(n===6?1.22:n===8?-1.22:0):0;
+      const target=Quaternion.RotationYawPitchRoll(angles.yaw,angles.pitch,relaxed);
+      bone.setRotationQuaternion(Quaternion.Slerp(bone.getRotationQuaternion()??Quaternion.Identity(),target,blend));
     });
-    // Ground the bent, rotating mesh itself; do not flatten or shrink the person's body.
-    if(moving||slide){let ground=Infinity;
-      for(const s of this.surfaces){s.mesh.skeleton!.prepare();const matrices=s.mesh.skeleton!.getTransformMatrices(s.mesh),world=s.mesh.computeWorldMatrix(true);
-        for(let v=0;v<s.points.length/3;v++){const px=s.points[v*3],py=s.points[v*3+1],pz=s.points[v*3+2];let ax=0,ay=0,az=0;
-          for(let j=0;j<4;j++){const weight=s.weights[v*4+j];if(!weight)continue;const m=s.indices[v*4+j]*16;ax+=(px*matrices[m]+py*matrices[m+4]+pz*matrices[m+8]+matrices[m+12])*weight;ay+=(px*matrices[m+1]+py*matrices[m+5]+pz*matrices[m+9]+matrices[m+13])*weight;az+=(px*matrices[m+2]+py*matrices[m+6]+pz*matrices[m+10]+matrices[m+14])*weight;}
-          const pos=Vector3.TransformCoordinates(new Vector3(ax,ay,az),world);ground=Math.min(ground,pos.y);
-        }
+    // Plant feet during locomotion; use the tucked body's silhouette during a roll.
+    // Avoid per-vertex Vector3 allocations and sudden pelvis-height corrections.
+    let ground=Infinity;
+    for(const surface of this.surfaces){
+      const skeleton=surface.mesh.skeleton!;skeleton.prepare(true);
+      const matrices=skeleton.getTransformMatrices(surface.mesh),world=surface.mesh.computeWorldMatrix(true).m;
+      for(let v=0;v<surface.points.length/3;v++){
+        if(!slide&&!surface.feet[v])continue;
+        const px=surface.points[v*3],py=surface.points[v*3+1],pz=surface.points[v*3+2];let ax=0,ay=0,az=0;
+        for(let j=0;j<4;j++){const weight=surface.weights[v*4+j];if(!weight)continue;const m=surface.indices[v*4+j]*16;ax+=(px*matrices[m]+py*matrices[m+4]+pz*matrices[m+8]+matrices[m+12])*weight;ay+=(px*matrices[m+1]+py*matrices[m+5]+pz*matrices[m+9]+matrices[m+13])*weight;az+=(px*matrices[m+2]+py*matrices[m+6]+pz*matrices[m+10]+matrices[m+14])*weight;}
+        ground=Math.min(ground,ax*world[1]+ay*world[5]+az*world[9]+world[13]);
       }
-      if(Number.isFinite(ground))this.body.position.y+=y+.025-ground+(slide?0:Math.abs(Math.sin(cycle))*.045);
     }
-    this.shadow.position.x=this.root.position.x;this.shadow.position.z=this.root.position.z;this.shadow.visibility=Math.max(.12,.36-y*.08);
-    if(this.snack){this.snack.setEnabled(this.w.mode==='intro');if(this.w.mode==='intro'){const hand=this.nativeJoints.find(j=>/right.*hand/.test(j.name)&&!/(index|thumb|middle|ring|pinky)/.test(j.name));if(hand){hand.node.computeWorldMatrix(true);this.snack.position.copyFrom(hand.node.getAbsolutePosition());this.snack.position.y+=.08;}}}
+    const offset=Number.isFinite(ground)?Math.max(slide?-1.5:-.4,Math.min(slide?1.5:.5,y+.025-ground)):0;
+    if(slide)this.groundOffset=offset;else this.groundOffset+=(offset-this.groundOffset)*(1-Math.exp(-dt*25));
+    if(!airborne&&offset>this.groundOffset)this.groundOffset=offset;
+    this.body.position.y+=this.groundOffset+(pose==='run'?sprintLift(cycle)*this.gait:0)-this.landing*.045;
+    this.shadow.position.x=this.root.position.x;this.shadow.position.z=this.root.position.z;const floor=this.police?0:(this.w.groundHeight??0),altitude=Math.max(0,y-floor);this.shadow.position.y=floor+.019;this.shadow.visibility=Math.max(.045,.36/(1+altitude*.45));this.shadow.scaling.set(1+altitude*.025,.7+altitude*.018,1);
+    if(this.snack){this.snack.setEnabled(this.w.mode==='intro'&&this.w.introProgress<.50);if(this.w.mode==='intro'){const hand=this.nativeJoints.find(j=>/right.*hand/.test(j.name)&&!/(index|thumb|middle|ring|pinky)/.test(j.name));if(hand){hand.node.computeWorldMatrix(true);this.snack.position.copyFrom(hand.node.getAbsolutePosition());this.snack.position.y+=.08;}}}
   }
 }

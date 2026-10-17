@@ -32,7 +32,7 @@ export class LocalAssets {
       const root=new TransformNode(files[i],this.world.scene);
       for(const mesh of result.meshes)if(!mesh.parent)mesh.parent=root;
       const bounds=root.getHierarchyBoundingVectors(true),size=bounds.max.subtract(bounds.min);
-      const fit=i<4?vehicleFit(size,i<2?'bus':'rickshaw'):null;const scale=fit?.scale??3.6/Math.max(size.x,size.z);
+      const fit=i<4?vehicleFit(size,i===0?'bus':i===1?'truck':'rickshaw'):null;const scale=fit?.scale??3.6/Math.max(size.x,size.z);
       const normal=new TransformNode('normalized asset',this.world.scene);root.parent=normal;root.scaling.setAll(scale);root.position=new Vector3(-(bounds.max.x+bounds.min.x)*scale/2,-bounds.min.y*scale,-(bounds.max.z+bounds.min.z)*scale/2);
       // Keep model heading inside the pooled root, which resets on every spawn.
       if(i<4){const heading=new TransformNode("front-facing vehicle",this.world.scene);heading.parent=normal;heading.rotation.y=Math.PI;root.parent=heading;}
@@ -47,8 +47,10 @@ export class LocalAssets {
     const scene=this.world.scene,root=new TransformNode(`fallback street asset ${i}`,scene);
     if(i<4){
       const kind=i<2?'bus':'rickshaw',vehicle=this.world.vehicle(kind);vehicle.parent=root;
-      // Match the visual scale used for loaded traffic models and their hitboxes.
-      root.metadata=i<2?{width:3.4,depth:9.3,height:4.9}:{width:2.9,depth:5.2,height:3.5};
+      // Fit fallback geometry and collider from the same dimensions as imported traffic.
+      const bounds=vehicle.getHierarchyBoundingVectors(true),fit=vehicleFit(bounds.max.subtract(bounds.min),i===0?'bus':i===1?'truck':'rickshaw');
+      vehicle.scaling.setAll(fit.scale);vehicle.position.set(-(bounds.min.x+bounds.max.x)*fit.scale/2,-bounds.min.y*fit.scale,-(bounds.min.z+bounds.max.z)*fit.scale/2);
+      root.metadata=fit;
     }else{
       this.world.box('fallback bazaar counter',2.6,1.2,1.25,0,.65,0,i===4?'#b8563c':'#d63e73',root);
       this.world.box('fallback bazaar canopy',3.5,.2,1.8,0,1.55,0,i===4?'#e5b74c':'#7bc5c2',root);

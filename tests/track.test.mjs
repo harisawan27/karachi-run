@@ -44,3 +44,14 @@ test('a rising ramp catches a low upward jump and tolerates a foot near the deck
  assert.equal(surfaceHeight(1.53,0,{x:0,width:3,depth:8,height:4.4}),4.4);
  assert.equal(contactKind({x:1.25,y:0},{x:0,z:0,width:3,depth:8,height:4.4,kind:'bus'}),'graze');
 });
+
+import {streetRow} from '../src/track.mjs';
+test('street phrases alternate optional jump and roll lines with a clear bypass and breathers',()=>{
+ const challenges=new Set();let rests=0;
+ for(let seed=0;seed<10;seed++)for(let i=4;i<80;i++){
+  const row=streetRow(i,seed);assert.ok(row.obstacles.every(o=>o.lane!==row.safeLane));
+  if(row.breather){rests++;assert.equal(row.obstacles.length,0);}
+  if(row.challenge){challenges.add(row.challenge.kind);assert.notEqual(row.challenge.lane,row.safeLane);assert.ok(row.obstacles.some(o=>o.lane===row.challenge.lane&&o.kind===row.challenge.kind));}
+ }
+ assert.ok(rests>0);assert.deepEqual([...challenges].sort(),['arch','barrier']);
+});

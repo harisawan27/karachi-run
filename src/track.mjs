@@ -19,5 +19,9 @@ export function streetRow(index,seed=0){
   if(lane===safeLane||(index<4&&lane!==(index%2?2:0)))continue;
   obstacles.push({lane,kind:index<4?(index%2?'arch':'barrier'):phrase.kinds[(index+lane)%phrase.kinds.length]});
  }
- return {safeLane,obstacles,phrase:index<4?'warmup':phrase.name};
+ const beat=index%8,breather=index>=4&&beat===7;
+ // Optional skill lines reward jump/roll while the guaranteed bypass stays open.
+ const challenge=index>=4&&(beat===2||beat===5)?{lane:safeLane===0?1:safeLane===2?1:(beat===2?0:2),kind:beat===2?'barrier':'arch'}:null;
+ if(challenge){const prop=obstacles.find(o=>o.lane===challenge.lane);if(prop)prop.kind=challenge.kind;}
+ return {safeLane,obstacles:breather?[]:obstacles,challenge,breather,phrase:index<4?'warmup':breather?'breather':phrase.name};
 }

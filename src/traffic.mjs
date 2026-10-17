@@ -26,8 +26,9 @@ export function canPlaceTraffic(candidate,existing,runnerSpeed){
   return true;
 }
 
-export function stepChaser(state,obstacles,dt,targetX,runnerSpeed,caught=false){
-  const desiredZ=caught?-1.8:-4.6,maxStep=7.8*dt;
+export function stepChaser(state,obstacles,dt,targetX,runnerSpeed,caught=false,retreat=false){
+  // The warden leaves the shot by losing ground, never by changing opacity.
+  const desiredZ=caught?-1.8:retreat?-19:-4.6,zSpeed=caught?9:retreat?6.5:2.1,maxStep=7.8*dt;
   const preferred=LANES.reduce((best,l)=>Math.abs(l-targetX)<Math.abs(best-targetX)?l:best,LANES[0]);
   const candidates=[state.targetX??preferred,...LANES,state.x];
   let best=state.x,bestCost=Infinity;
@@ -35,7 +36,7 @@ export function stepChaser(state,obstacles,dt,targetX,runnerSpeed,caught=false){
     let unsafe=false;const horizon=Math.max(.9,Math.abs(candidate-state.x)/7.8+.30);
     for(let t=.12;t<=horizon;t+=.12){
       const x=state.x+Math.sign(candidate-state.x)*Math.min(Math.abs(candidate-state.x),7.8*t);
-      const z=Math.min(desiredZ,state.z+t*2.1);
+      const z=state.z+Math.sign(desiredZ-state.z)*Math.min(Math.abs(desiredZ-state.z),t*zSpeed);
       if(obstacles.some(o=>overlapsChaser({x,z},{...o,z:o.z-t*(runnerSpeed+(o.vehicleSpeed||0))}))){unsafe=true;break;}
     }
     // Hysteresis: finish a safe dodge before considering a different lane.
@@ -43,15 +44,18 @@ export function stepChaser(state,obstacles,dt,targetX,runnerSpeed,caught=false){
     const cost=Math.abs(candidate-preferred)+Math.abs(candidate-state.x)*.22-(committed?((state.hold??0)>0?100:1.5):0);
     if(!unsafe&&cost<bestCost){best=candidate;bestCost=cost;}
   }
-  let next={x:state.x+Math.sign(best-state.x)*Math.min(Math.abs(best-state.x),maxStep),z:state.z+Math.sign(desiredZ-state.z)*Math.min(Math.abs(desiredZ-state.z),dt*2.1),blocked:false,targetX:best,hold:Math.abs(best-(state.targetX??state.x))>.01?.85:Math.max(0,(state.hold??0)-dt)};
+  let next={x:state.x+Math.sign(best-state.x)*Math.min(Math.abs(best-state.x),maxStep),z:state.z+Math.sign(desiredZ-state.z)*Math.min(Math.abs(desiredZ-state.z),dt*zSpeed),blocked:false,targetX:best,hold:Math.abs(best-(state.targetX??state.x))>.01?.85:Math.max(0,(state.hold??0)-dt)};
   const swept=obstacles.filter(o=>sweepObstacle(state,next,o));
   if(swept.length){
     // A failed dodge is a physical setback: remain on the near side of the vehicle/prop.
     next.x=state.x;next.blocked=true;
-    for(const o of obstacles)if(Math.abs(next.x-o.x)<width(o)&&sweepObstacle(state,next,o))next.z=Math.min(next.z,o.z-depth(o)-.04);
+    for(const o of obstacles)if(Math.abs(next.x-o.x)<width(o)&&sweepObstacle(state,next,o)){
+      if(state.z>=(o.previousZ??o.z)+depth(o))next.z=Math.max(next.z,o.z+depth(o)+.04);
+      else next.z=Math.min(next.z,o.z-depth(o)-.04);
+    }
   }
   // Resolve a newly spawned or already overlapping body as well as continuous contacts.
-  for(let pass=0;pass<obstacles.length+1;pass++)for(const o of obstacles)if(overlapsChaser(next,o)){next.z=o.z-depth(o)-.04;next.blocked=true;}
+  for(let pass=0;pass<obstacles.length+1;pass++)for(const o of obstacles)if(overlapsChaser(next,o)){next.z=state.z>=(o.previousZ??o.z)+depth(o)?o.z+depth(o)+.04:o.z-depth(o)-.04;next.blocked=true;}
   return next;
 }
 

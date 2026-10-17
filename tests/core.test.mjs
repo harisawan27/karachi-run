@@ -12,8 +12,8 @@ test('distance increases speed progressively with a safe maximum', () => {
   assert.equal(speedAtDistance(-5),14);
 });
 test('runner cadence stays controlled as game speed rises', () => {
-  assert.equal(runCadence(14), 11.5);
-  assert.ok(runCadence(32) < 14);
+  assert.ok(runCadence(14)>=14 && runCadence(14)<=15.5);
+  assert.ok(runCadence(32) < 17);
   assert.ok(runCadence(32) > runCadence(14));
 });
 test('Phase 2 power upgrades migrate safely, scale pickup duration, and spend coins', () => {

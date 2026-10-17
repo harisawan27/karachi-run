@@ -42,3 +42,17 @@ test('oncoming waves rotate lanes and reserve six rows before buses arrive',()=>
   assert.equal(canPlaceTraffic({x:[-3.15,0,3.15][wave.lane],z:145,depth:8.5,kind:'bus',vehicleSpeed:8},[roof],22),true);
  }
 });
+
+test('warden loses ground continuously behind the camera and returns after a bump',()=>{
+ for(const fps of [30,60,120]){
+  let s={x:0,z:-4.6};
+  for(let i=0;i<fps*3;i++){const before=s.z;s=stepChaser(s,[],1/fps,0,20,false,true);assert.ok(s.z<=before&&before-s.z<=6.5/fps+.00001);}
+  assert.equal(s.z,-19);
+  for(let i=0;i<fps*2.1;i++){const before=s.z;s=stepChaser(s,[],1/fps,0,20,true,false);assert.ok(s.z>=before&&s.z-before<=9/fps+.00001);}
+  assert.equal(s.z,-1.8);
+ }
+});
+test('retreat does not teleport the warden through a prop behind him',()=>{
+ const prop={x:0,z:-10,depth:4,width:2.7,kind:'rickshaw',vehicleSpeed:0};let s={x:0,z:-4.6};
+ for(let i=0;i<180;i++){s=stepChaser(s,[prop],1/60,0,0,false,true);assert.equal(overlapsChaser(s,prop),false);}
+});
