@@ -14,7 +14,7 @@ export function stepVertical(y,velocity,oldFloor,floor,dt,speed){
  const gravity = (velocity > -2.5 && velocity < 2.5) ? 22 : 27;
  const nextVelocity=velocity-gravity*dt,nextY=y+nextVelocity*dt;
  if(nextY<=floor&&climb>=0&&climb<=speed*dt*.45+.08&&y>=oldFloor-.06)return {y:floor,velocity:0,landed:!grounded};
- if(nextVelocity<=0&&nextY<=floor&&(y>=floor-.01||(y>=oldFloor-.06&&climb>=0&&climb<=speed*dt*.45+.08)))return {y:floor,velocity:0,landed:!grounded};
+ if(nextVelocity<=0&&nextY<=floor&&(y>=floor-.15||(y>=oldFloor-.06&&climb>=0&&climb<=speed*dt*.45+.08)))return {y:floor,velocity:0,landed:!grounded};
  return {y:Math.max(0,nextY),velocity:nextY<=0?0:nextVelocity,landed:nextY<=0&&!grounded};
 }
 

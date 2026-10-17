@@ -1,5 +1,12 @@
 export const SAVE_KEY = 'karachi-run.save.v1';
 export const LANES = [-3.15, 0, 3.15];
+export function jumpImpulse(bounceActive=false){return bounceActive?22:10.8;}
+export function sideBumpResponse(previousX,obstacle){
+ const side=Math.sign(previousX-obstacle.x)||1;
+ const x=obstacle.x+side*((obstacle.width??2.6)/2+.32);
+ const lane=LANES.reduce((best,value,index)=>Math.abs(value-x)<Math.abs(LANES[best]-x)?index:best,1);
+ return {x,lane};
+}
 export function speedAtDistance(distance) { return Math.min(32,14+Math.max(0,Number.isFinite(distance)?distance:0)*.012); }
 export function runCadence(speed) { return 11.5 + Math.min(2, Math.max(0, speed - 14) * .11); }
 export const POWER_DURATION = Object.freeze({ magnet: 12, boost: 12, chai: 8.5, biryani: 12, shoes: 8 });

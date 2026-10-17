@@ -377,16 +377,17 @@ export class KarachiWorld {
       sy=(Math.random()-.5)*this.shakeIntensity;
       this.shakeIntensity*=Math.exp(-dt*7);
     }
-    this.cameraElevation+=(this.groundHeight-this.cameraElevation)*(1-Math.exp(-dt*5));
+    this.cameraElevation+=(this.groundHeight+(this.flightBlend<.1?Math.min(9,Math.max(0,playerY-this.groundHeight))*.45:0)-this.cameraElevation)*(1-Math.exp(-dt*5));
     const portrait=innerWidth<innerHeight;
+    if(!playing&&portrait&&innerWidth<=700)this.pursuer.root.position.set(-1.3,0,2.9);
     const flightTarget=playing&&playerY-this.groundHeight>4.5?1:0;this.flightBlend+=(flightTarget-this.flightBlend)*(1-Math.exp(-dt*2.7));
-    const desiredGround=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,portrait?-12.4:-10.8):new Vector3(-4.1,7,-14);
-    const targetGround=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):new Vector3(1,1.8,27);
+    const desiredGround=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,portrait?-12.4:-10.8):portrait&&innerWidth<=700?new Vector3(0,3.3,innerHeight<=700?-9.3:-8):new Vector3(-4.1,7,-14);
+    const targetGround=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):portrait&&innerWidth<=700?new Vector3(0,innerHeight<=700?1.05:1.65,0):new Vector3(1,1.8,27);
     const desiredAir=new Vector3(this.runner.root.position.x*(portrait?.035:.09)+sx,playerY+(portrait?20:18)+sy,portrait?-20:-18);
     const targetAir=new Vector3(this.runner.root.position.x*(portrait?.025:.07)+sx*.5,Math.max(1.6,this.cameraElevation*.18+1.6)+sy*.3,portrait?24:22);
     const desired=Vector3.Lerp(desiredGround,desiredAir,this.flightBlend),target=Vector3.Lerp(targetGround,targetAir,this.flightBlend);
     const factor=1-Math.exp(-dt*4);this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    this.camera.setTarget(target);const groundFov=(portrait?1.2:.87)+(running?Math.min(.10,(this.speed-14)*.006):0),airFov=portrait?1.28:.99;this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
+    this.camera.setTarget(target);const groundFov=(!playing&&portrait&&innerWidth<=700?.74:portrait?1.2:.87)+(running?Math.min(.10,(this.speed-14)*.006):0),airFov=portrait?1.28:.99;this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
     if(playing){
       const lateralDist=this.runner.root.position.x;
       this.camera.rotation.z+=(-lateralDist*.012-this.camera.rotation.z)*(1-Math.exp(-dt*10));

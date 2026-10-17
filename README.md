@@ -24,6 +24,8 @@ Five Karachi-themed powers appear as track pickups: **Coin Magnet** draws nearby
 
 ## Recent prototype updates
 
+Peshawari Bounce now boosts every jump input, including buffered jumps, high enough to clear a full-size bus or truck. Vehicle roofs support descending landings and remain walkable when the power expires. Side brushes recoil into a clear lane with a brief recovery window, bringing the Warden closer instead of turning the same contact into a fatal head-on hit; another stumble within five seconds can still end a run. The portrait lobby presents the full 3D runner and Warden in the street scene, with floating records, an arcade logo, a pulsing Tap to Run button, and thumb-sized navigation. Compact phone layouts keep the character and play control clear.
+
 The home screen and navigation now use a game-style layout built for phone screens first. The bottom bar opens Home, Missions, Me, Shop, and City; the large **Run** button on Home starts a run. The mobile camera widens its view and reduces lateral tracking in portrait mode so the runner and all three lanes remain easier to follow. Touch controls adapt to small screens, and the gameplay instruction hint fades after the opening seconds.
 
 The Bazaar includes the Karachi Cruiser ride inventory. New local saves start with five rides, and older saves receive that starter allotment once during migration. A single ride costs ₨ 90 and a five-ride pack costs ₨ 350 in game coins. Activating the board consumes one ride; it lasts up to 25 seconds and shields one hit or stumble. The board is not a track pickup. Inventory is saved locally and is not a real-money purchase.

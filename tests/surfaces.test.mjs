@@ -15,3 +15,27 @@ test('descending jump lands on an ascending ramp rather than falling through',()
 test('clothing clearance is ignored, edge brushes graze, body hits stop',()=>{const obstacle={x:0,z:0,width:3,depth:8,height:4,kind:'bus'};assert.equal(contactKind({x:1.9,y:0},obstacle),'none');assert.equal(contactKind({x:1.6,y:0},obstacle),'graze');assert.equal(contactKind({x:0,y:0},obstacle),'direct');assert.equal(contactKind({previousX:-2,x:2,y:0},obstacle),'graze');});
 
 test('bounce-height bus roof stays walkable after a jump lands',()=>{const bus={x:0,width:3,depth:8,height:4.9,ramp:false};assert.equal(surfaceHeight(0,0,bus),4.9);assert.equal(surfaceHeight(1.6,0,bus),null);});
+import {jumpImpulse,sideBumpResponse} from '../src/core.mjs';
+test('Peshawari Bounce clears a full bus and catches its roof on descent',()=>{
+ let y=0,v=jumpImpulse(true),floor=0,peak=0,landed=false;
+ for(let i=0;i<180;i++){
+  const surface=i>28&&i<140&&y>=4.75?4.9:0;
+  const next=stepVertical(y,v,floor,surface,1/60,20);y=next.y;v=next.velocity;floor=surface;peak=Math.max(peak,y);
+  if(next.landed&&surface===4.9){landed=true;assert.equal(y,4.9);break;}
+ }
+ assert.ok(peak>7,'powered jump must clear the whole vehicle');assert.ok(landed,'descending feet must land on the roof');
+ let normalY=0,normalV=jumpImpulse(false),normalPeak=0;
+ for(let i=0;i<90;i++){const n=stepVertical(normalY,normalV,0,0,1/60,20);normalY=n.y;normalV=n.velocity;normalPeak=Math.max(normalPeak,normalY);}
+ assert.ok(normalPeak<3,'normal jumps remain distinct');
+});
+test('a near-deck descending landing tolerates the roof seam without a teleport from below',()=>{
+ assert.equal(stepVertical(4.82,-5,0,4.9,.016,32).y,4.9);
+ assert.equal(stepVertical(0,0,0,4.9,.016,32).y,0);
+});
+test('side bump recoils into the clear lane so the same obstacle cannot become a head-on crash next frame',()=>{
+ const bus={x:0,width:3.4,z:0,depth:9.3,height:4.9,kind:'bus'};
+ for(const oldX of [-2,2]){
+  const recoil=sideBumpResponse(oldX,bus);assert.equal(recoil.lane,oldX<0?0:2);
+  assert.equal(contactKind({x:recoil.x,previousX:recoil.x,y:0},bus),'none');
+ }
+});
