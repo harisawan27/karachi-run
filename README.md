@@ -4,7 +4,7 @@
 
 Karachi Run is an independent project. It uses familiar three-lane endless-runner controls, with original code, city scenery, interface, and game assets. Its districts and landmarks are stylized interpretations arranged into a compressed game route; the course is not a surveyed or geographically exact map.
 
-> **Project status:** playable browser prototype / beta foundation. Runs, coins, settings, missions, character selection, the store, Google account sign-in, and per-account cloud saves are implemented. Neon Auth, the Data API, and the save-table security migration are connected; Google OAuth provider setup and trusted production domains must be completed in Neon before players can sign in. The project does not currently provide online leaderboards, real-money purchases, advertising, or a published Android/iOS app. See [LAUNCH-PLAN.md](LAUNCH-PLAN.md) for the current release gates.
+> **Project status:** playable browser prototype / beta foundation. Runs, coins, settings, missions, character selection, the store, Google account sign-in, and per-account cloud saves are implemented. Neon Auth, the Data API, and the save-table security migration are connected; New deployments must configure their public service URLs and trusted domains in Neon. The project does not currently provide online leaderboards, real-money purchases, advertising, or a published Android/iOS app. See [LAUNCH-PLAN.md](LAUNCH-PLAN.md) for the current release gates.
 
 ### Phase 1: game feel and movement polish — complete
 
@@ -12,7 +12,7 @@ Phase 1 tightens the moment-to-moment run without changing the route or starting
 
 The Karachi Cruiser is a player-activated board shield, not a board pickup placed on the track. A fresh local save starts with five free Cruiser rides (and an older save receives the starter allotment the first time it is upgraded). In guest mode, the allotment and purchases stay on this browser. Once Neon Auth is configured, account saves sync the balance and purchases across browsers. After that, buy a ride for ₨ 90 or a five-ride pack for ₨ 350 in the Boards tab of the Bazaar. Each activation consumes one ride: press **Space**, **B**, or **Enter** on a keyboard, or double-tap on a touchscreen. The visible board appears under the runner for up to 25 seconds and absorbs one collision or stumble. Breaking on a hit starts a 20-second cooldown and gives a short 1.8-second grace window; letting its timer expire starts a 15-second cooldown. The HUD and board screen show the remaining ride count.
 
-Coin pickup also pulses the coin counter and plays the pickup sound. The later progression and launch phases remain future work.
+Coin pickup also pulses the coin counter and plays the pickup sound. Phase 3 progression is described below; launch and distribution remain separate work.
 
 ### Phase 2: Desi soundscape and power-ups — complete
 
@@ -21,6 +21,18 @@ The run now has an original, speed-synced Karachi beat built from dhol-style low
 Urdu quips are optional and use the browser’s installed Urdu speech voice when one is available; the game never imitates a real person’s voice. The Settings screen saves separate Street Effects, Karachi Beat, and Urdu Voice Quips preferences.
 
 Five Karachi-themed powers appear as track pickups: **Coin Magnet** draws nearby coins, **Double Points** doubles score, **Dhabba Chai Jetpack** rises above the rooftops for a sky-coin trail, **Khazana Biryani** doubles score and coin rewards, and **Peshawari Bounce** boosts jumps. Pickups now wait for a distance-based cooldown equivalent to roughly 18–28 seconds of running, skip about three in ten eligible opportunities, and keep an opening stretch clear before the first one. This spaces rewards out even as speed rises. The Bazaar upgrades each pickup’s duration with earned coins, up to level 5; it does not sell one-run power stock. The pickups have distinct 3D silhouettes: a horseshoe magnet, a gold ×2 token, a steaming chai glass and saucer, an open biryani handi, and Peshawari sandals with a bounce cue. Chai flight adds visible twin plumes and a halo, eases the camera into a high city view, and returns it smoothly on landing. While airborne, a continuous zigzag of coins covers all three lanes; the last coin is placed at the predicted end of the remaining flight. Save migration preserves existing wallet, character, ticket, board, energy, and record data while converting old energy counts into upgrade levels.
+
+### Phase 3: mission sets, daily hunt, and cloud progression
+
+Three missions now run together in a set: collect coins, cover distance, clear jump barriers, roll under signs, run on elevated routes, collect power-ups, or pass traffic. Counters carry across runs and devices. Completing all three makes a set reward available in Missions or the results screen. Collecting it awards coins and permanently raises the base score multiplier by one, up to **×30**. Later sets still award coins at the cap. This permanent base replaces the old time-based run multiplier; Double Points and Biryani bonuses stack separately. Earlier single-mission completions are credited in groups of three, and the remaining completed slots/current progress are carried into the migrated set. Wallet, ownership, upgrades, tickets, boards, scores, settings, and account saves remain intact.
+
+The daily **K–A–R–A–C–H–I** hunt uses seven distinct letter positions, including both As. Gold 3D letter tokens spawn on checked ground lanes with room to collect them; missed letters return later, and crashes do not clear collected letters. The hunt resets at **midnight Asia/Karachi (UTC+5)**. Collect all seven across any number of runs to open one free Khazana pot. Possible packs are shown before opening: 500 coins + 2 Cruiser rides, 350 coins + 2 Wapsi Tickets, or 800 coins + 1 Cruiser ride. There is no real-money purchase or paid random reward. Personal-best approach and record-break billboards mark score milestones without adding collision geometry.
+
+The phone-first Missions screen shows three progress cards, a permanent-multiplier medal, a daily-hunt tab, letter tiles, a pot reveal, reward details, and a Pakistan-midnight countdown. Run results show mission gains and letters found in that run. Reduced-motion preferences suppress decorative motion. The seven-letter HUD stays compact during play.
+
+**Cloud consistency:** the complete version-8 progression stays in each player's existing Neon `player_saves.save_data` JSON. Account writes use the revision-aware `sync_player_save` RPC; a stale device cannot silently overwrite a newer snapshot. Profile offers an explicit load-latest action and keeps the unsynced local snapshot as a browser backup. Atomic `claim_player_reward` transactions check completion, add wallet/inventory rewards, advance the mission set or daily claim, and write an immutable per-account receipt in `player_reward_claims`. Repeated requests return the same receipt without paying again. RLS restricts both saves and receipts to their owner. Daily claims use the database's Pakistan date. Signed-in reward claims require connectivity; offline run progress remains queued locally and retries on reconnection. Guests claim once locally and their daily state/mission progress merge when they link an account.
+
+Apply [migration 004](db/migrations/004_progression_rewards.sql) after migrations 001–003 when setting up another Neon project. It adds no frontend database credential and needs no separate application server. The migration has been applied to this project's existing Neon database. Automated tests cover migration, all seven letters, daily rollover, multiplier caps, guest merging, revision conflicts, and complete cloud snapshots. Live Neon transaction tests cover duplicate mission/daily claims, incomplete/expired rewards, stale writes, receipt RLS, and cross-account isolation; test data and the temporary test identity are rolled back. Full browser visual verification remains a manual release check.
 
 ## Recent prototype updates
 
@@ -71,9 +83,9 @@ Make a short, deliberate swipe. A direct body hit ends the run. A glancing conta
 ### Run, score, and rewards
 
 - The runner starts at 14 m/s. Speed rises with distance, reaching 20 m/s at 500 m, 26 m/s at 1,000 m, and a cap of 32 m/s at 1,500 m.
-- Score grows with distance. Its multiplier increases during a longer run, up to ×8. Double Points and Khazana Biryani temporarily double score; when both overlap, their bonuses stack.
+- Score grows with distance. Its permanent base multiplier advances through completed mission sets, up to ×30. Double Points and Khazana Biryani temporarily double score; when both overlap, their bonuses stack.
 - Coins are added to the saved wallet as they are collected, including during a run. Ending or crashing does not credit the same coins again.
-- Discovering a landmark awards 100 points. Coin, obstacle, distance, and jump missions award bonus coins when completed.
+- Discovering a landmark awards 100 points. Collecting a completed three-mission set awards bonus coins and advances the permanent base multiplier.
 - Coins stay on their route and are collected only when the runner reaches them; they move toward the runner only while a Coin Magnet is active. If the magnet expires mid-pull, affected coins ease back to their route. A Coin Magnet attracts nearby coins for 12 seconds, Double Points lasts 12 seconds, Dhabba Chai lifts Haris above Karachi rooftops for an aerial coin trail, Khazana Biryani doubles score and coins for 12 seconds, and Peshawari Bounce boosts jumps for 8 seconds. Bazaar upgrades extend each pickup duration, up to level 5. None activates before its route pickup is collected. Chai flight eases into a high city view and descends smoothly when its timer ends.
 - A crash opens an eight-second continue choice. Continuing requires one Wapsi Ticket; there is no free revive. A ticket can be bought with coins at the crash screen or stocked in the Bazaar. The five-ticket bundle costs less than five individual tickets.
 - The City screen lets you choose a district as the starting point. A run then continues across all eight districts and loops back to the start.
@@ -131,6 +143,9 @@ Deploy the contents of `dist/` to a static web host that serves JavaScript modul
 | `src/character-preview.ts` | Isolated 3D character viewer used in the collection/store |
 | `src/core.mjs` | Save validation, economy helpers, collision rules, mission definitions, speed progression, run cadence, and coin attraction |
 | `src/routes.mjs` | District order, route lengths, progress, and environment transitions |
+| `src/progression.mjs` | Version-8 mission sets, daily hunt, rewards, migration, and safe letter lanes |
+| `src/progression-view.mjs` | Mission, daily-hunt, reward-reveal, and run-results markup |
+| `src/progression-scene.ts` | Pooled 3D letter token and personal-record billboard |
 | `src/track.mjs` | Seeded obstacle phrases and safe-lane planning |
 | `src/traffic.mjs` | Moving-traffic placement, swept collision helpers, chase movement, and rooftop convoy layout |
 | `src/surfaces.mjs` | Ramp and rooftop surface calculations |

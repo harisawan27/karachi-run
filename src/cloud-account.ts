@@ -12,6 +12,8 @@ const authUrl = import.meta.env.VITE_NEON_AUTH_URL?.trim();
 const dataApiUrl = import.meta.env.VITE_NEON_DATA_API_URL?.trim();
 let auth: AuthClient | null = null;
 let dataApi: NeonPostgrestClient | null = null;
+let playerStore:ReturnType<typeof createPlayerSaveStore>|null=null;
+function getStore(){return playerStore??=createPlayerSaveStore(getDataApi());}
 
 export function cloudIsConfigured() { return Boolean(authUrl && dataApiUrl); }
 
@@ -62,9 +64,12 @@ export async function signOutCloud() {
 }
 
 export async function loadCloudSave(userId: string): Promise<PlayerSave | null> {
-  return createPlayerSaveStore(getDataApi()).load(userId);
+  return getStore().load(userId);
 }
 
 export async function writeCloudSave(userId: string, save: PlayerSave) {
-  await createPlayerSaveStore(getDataApi()).write(userId, save);
+  return await getStore().write(userId, save);
 }
+
+export function cloudSaveVersion(userId:string){return getStore().version(userId);}
+export async function claimCloudReward(userId:string,kind:string,key:string){return await getStore().claim(userId,kind,key);}
