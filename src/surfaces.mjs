@@ -10,12 +10,12 @@ export function surfaceHeight(playerX, localZ, surface){
 export function stepVertical(y,velocity,oldFloor,floor,dt,speed){
  const grounded=velocity<=0&&velocity>=-.01&&Math.abs(y-oldFloor)<.06;
  const climb=floor-oldFloor;
- if(grounded&&Math.abs(climb)<=speed*dt*.45+.08)return {y:floor,velocity:0,landed:false};
+ if(grounded&&Math.abs(climb)<=speed*dt*.45+.08)return {y:floor,velocity:0,landed:false,impactSpeed:0};
  const gravity = 32;
- const nextVelocity=velocity-gravity*dt,nextY=y+nextVelocity*dt;
- if(nextY<=floor&&climb>=0&&climb<=speed*dt*.45+.08&&y>=oldFloor-.06)return {y:floor,velocity:0,landed:!grounded};
- if(nextVelocity<=0&&nextY<=floor&&(y>=floor-.15||(y>=oldFloor-.06&&climb>=0&&climb<=speed*dt*.45+.08)))return {y:floor,velocity:0,landed:!grounded};
- return {y:Math.max(0,nextY),velocity:nextY<=0?0:nextVelocity,landed:nextY<=0&&!grounded};
+ const nextVelocity=velocity-gravity*dt,nextY=y+velocity*dt-.5*gravity*dt*dt;
+ if(nextY<=floor&&climb>=0&&climb<=speed*dt*.45+.08&&y>=oldFloor-.06)return {y:floor,velocity:0,landed:!grounded,impactSpeed:Math.max(0,-nextVelocity)};
+ if(nextVelocity<=0&&nextY<=floor&&(y>=floor-.15||(y>=oldFloor-.06&&climb>=0&&climb<=speed*dt*.45+.08)))return {y:floor,velocity:0,landed:!grounded,impactSpeed:Math.max(0,-nextVelocity)};
+ return {y:Math.max(0,nextY),velocity:nextY<=0?0:nextVelocity,landed:nextY<=0&&!grounded,impactSpeed:nextY<=0?Math.max(0,-nextVelocity):0};
 }
 
 export function canRide(y,height){return height!==null&&y>=height-.15;}

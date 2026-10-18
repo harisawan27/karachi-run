@@ -10,6 +10,8 @@ import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { createScanRig } from './scan-rig.mjs';
 import sprintClip from './haris-sprint.mjs';
+import jumpClip from './haris-jump.mjs';
+import {jumpClipProgress} from './air-movement.mjs';
 import '@babylonjs/loaders/glTF';
 import type { KarachiWorld } from './world';
 
@@ -19,12 +21,12 @@ export class ModelCharacter {
   private gait=0;private landing=0;private lastX=0;private lastY=0;private groundOffset=0;
   // The comparison playground can select the previous gait without changing physics.
   useSprintClip=true;
-  private sprintTracks=new Map<string,Quaternion[]>();private clipBlend=0;
+  private sprintTracks=new Map<string,Quaternion[]>();private jumpTracks=new Map<string,Quaternion[]>();private clipBlend=0;
   private clipTarget=new Quaternion();
   private squashFactor=1;private squashTarget=1;private squashDuration=0;
   squash(factor=.78,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
   stretch(factor=1.15,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
-  land(){this.landing=1;this.squash(.96,.10);}
+  land(impactSpeed=14){this.landing=Math.max(.3,Math.min(1,impactSpeed/22));this.phase=Math.round(this.phase/Math.PI)*Math.PI;this.squash(.98,.08);}
   dispose(){for(const skeleton of new Set(this.surfaces.map(surface=>surface.mesh.skeleton)))skeleton?.dispose();this.root.dispose(false,true);this.shadow.dispose();this.snack?.dispose(false,true);}
   private armMask:Uint8Array|null=null;
   private nativeJoints:{node:TransformNode;rest:Quaternion;name:string;side:number;armsDown:boolean}[]=[];
@@ -50,7 +52,10 @@ export class ModelCharacter {
       for(const mesh of meshes){const p=mesh.getVerticesData(VertexBuffer.PositionKind),ix=mesh.getVerticesData(VertexBuffer.MatricesIndicesKind),wt=mesh.getVerticesData(VertexBuffer.MatricesWeightsKind);if(!p||!ix||!wt||!mesh.skeleton)continue;const points:number[]=[],indices:number[]=[],weights:number[]=[],feet:number[]=[];for(let v=0;v<p.length/3;v+=Math.max(1,Math.floor(p.length/3/240))){points.push(...p.slice(v*3,v*3+3));indices.push(...ix.slice(v*4,v*4+4));weights.push(...wt.slice(v*4,v*4+4));let footWeight=0;for(let j=0;j<4;j++)if(/foot|toe/i.test(mesh.skeleton.bones[ix[v*4+j]]?.name??''))footWeight+=wt[v*4+j];feet.push(footWeight>.25?1:0);}this.surfaces.push({mesh,points,indices,weights,feet});}
     }else for(const mesh of meshes)this.rig(mesh);
     for(const mesh of meshes){mesh.alwaysSelectAsActiveMesh=true;mesh.isPickable=false;}
-    if(this.source==='pakistani_boy.glb')for(const [name,frames]of Object.entries(sprintClip.tracks))this.sprintTracks.set(name,frames.map(q=>Quaternion.FromArray(q)));
+    if(this.source==='pakistani_boy.glb'){
+      for(const [name,frames]of Object.entries(sprintClip.tracks))this.sprintTracks.set(name,frames.map(q=>Quaternion.FromArray(q)));
+      for(const [name,frames]of Object.entries(jumpClip.tracks))this.jumpTracks.set(name,frames.map(q=>Quaternion.FromArray(q)));
+    }
   }
   private registerJoints(skeleton:Skeleton,armsDown:boolean){
     for(const bone of skeleton.bones){
@@ -76,11 +81,13 @@ export class ModelCharacter {
     const flying=!this.police&&this.w.flightActive,airborne=!this.police&&this.w.airborne;
     const moving=this.gait>.01&&!boardRiding;
     if(moving&&!airborne&&!slide)this.phase+=gaitAdvance*runCadence(speed);
-    const cycle=this.phase,verticalSpeed=(y-this.lastY)/Math.max(dt,.001);this.lastY=y;
-    const pose=slide?'roll':flying?'flight':boardRiding?'board':airborne?'jump':moving?'run':'idle';
+    const cycle=this.phase,verticalSpeed=this.w.verticalVelocity??(y-this.lastY)/Math.max(dt,.001);this.lastY=y;
+    const settling=flying&&this.w.flightStage==='landing'&&y-(this.w.groundHeight??0)<3;
+    const pose=slide?'roll':flying&&!settling?'flight':airborne?'jump':boardRiding?'board':moving?'run':'idle';
     const authored=pose==='run'&&this.useSprintClip&&this.sprintTracks.size>0;
+    const jumping=pose==='jump'&&this.jumpTracks.size>0;
     this.clipBlend+=((authored?1:0)-this.clipBlend)*(1-Math.exp(-dt*24));
-    const clipFrame=((cycle/(Math.PI*2))%1+1)%1*sprintClip.frames,clipIndex=Math.floor(clipFrame),clipFraction=clipFrame-clipIndex;
+    const clipFrame=jumping?Math.min(jumpClip.frames-.00001,jumpClipProgress(verticalSpeed,this.w.jumpLaunchSpeed??11.6)*jumpClip.frames):((cycle/(Math.PI*2))%1+1)%1*sprintClip.frames,clipIndex=Math.floor(clipFrame),clipFraction=clipFrame-clipIndex;
     this.root.position.y=y;
     const roll=slide?Math.max(0,Math.min(1,1-rollRemaining/ROLL_DURATION)):0;
     this.landing*=Math.exp(-dt*13);
@@ -89,20 +96,25 @@ export class ModelCharacter {
     else this.squashFactor+=(1-this.squashFactor)*blend;
     const sY=Math.max(.94,Math.min(1.04,this.squashFactor)),sXZ=Math.sqrt(1/sY);
     this.body.scaling.set(sXZ,sY,sXZ);
-    const lean=slide?Math.PI*2*roll:flying?.025:boardRiding?.06:this.gait*.145*(1-this.clipBlend)+this.landing*.055;
-    const bank=running&&!slide?Math.max(-.15,Math.min(.15,-lateral*.015)):0;
+    const lean=slide?Math.PI*2*roll:pose==='flight'?.08:pose==='jump'?.04:boardRiding?.06:this.gait*.145*(1-this.clipBlend)+this.landing*.055;
+    const bank=running&&!slide?Math.max(flying?-.20:-.15,Math.min(flying?.20:.15,-lateral*(flying?.020:.015))):0;
     const bodyTarget=Quaternion.FromEulerAngles(lean,boardRiding?.22:pose==='run'?Math.sin(cycle)*.035+Math.max(-.12,Math.min(.12,lateral*.012)):0,bank);
     this.body.rotationQuaternion=Quaternion.Slerp(this.body.rotationQuaternion??Quaternion.Identity(),bodyTarget,blend);
     const stepHop=pose==='run'?0:pose==='board'?Math.sin(t*8.5)*.014:pose==='idle'?Math.sin(t*1.7)*.007:0;
     this.body.position.set(0,stepHop,0);
     for(const joint of this.nativeJoints){
-      const baked=authored?this.sprintTracks.get(joint.node.name):undefined;
-      if(baked&&this.clipBlend>.999){
+      const baked=jumping?this.jumpTracks.get(joint.node.name):authored?this.sprintTracks.get(joint.node.name):undefined;
+      if(baked&&(jumping||this.clipBlend>.999)){
         Quaternion.SlerpToRef(baked[clipIndex],baked[clipIndex+1],clipFraction,this.clipTarget);
+        if(authored&&this.landing>.005&&/leg/i.test(joint.name)&&!/foot|toe/.test(joint.name)){
+          const inverse=joint.node.parent!.computeWorldMatrix(true).clone().invert(),frame=this.body.computeWorldMatrix(true);
+          const axis=Vector3.TransformNormal(Vector3.TransformNormal(Vector3.Right(),frame),inverse).normalize().scaleInPlace(inverse.determinant()<0?-1:1);
+          this.clipTarget.copyFrom(Quaternion.RotationAxis(axis,(joint.name.includes('upleg')?-.12:.24)*this.landing).multiply(this.clipTarget));
+        }
         Quaternion.SlerpToRef(joint.node.rotationQuaternion??joint.rest,this.clipTarget,blend,joint.node.rotationQuaternion!);
         continue;
       }
-      const angles=jointPose(joint.name,joint.side,cycle,pose,this.gait,this.landing,verticalSpeed);
+      const angles=jointPose(joint.name,joint.side,pose==='flight'?t*2.4:cycle,pose,this.gait,this.landing,verticalSpeed);
       // Haris starts in a T-pose; the supplied scans already have their arms down.
       // Retarget the rest-angle difference without changing the shared motion.
       if(joint.armsDown&&/arm/.test(joint.name)&&!/forearm/.test(joint.name))angles.roll+=joint.side*1.44;
@@ -136,8 +148,8 @@ export class ModelCharacter {
         ground=Math.min(ground,ax*world[1]+ay*world[5]+az*world[9]+world[13]);
       }
     }
-    const offset=Number.isFinite(ground)?Math.max(slide?-1.5:-.4,Math.min(slide?1.5:.5,y+.025-ground)):0;
-    if(slide||authored)this.groundOffset=offset;else this.groundOffset+=(offset-this.groundOffset)*(1-Math.exp(-dt*25));
+    const offset=Number.isFinite(ground)?Math.max(slide?-1.5:jumping?-1.2:-.4,Math.min(slide?1.5:jumping?1.2:.5,y+.025-ground)):0;
+    if(slide||authored||jumping)this.groundOffset=offset;else this.groundOffset+=(offset-this.groundOffset)*(1-Math.exp(-dt*25));
     if(!airborne&&offset>this.groundOffset)this.groundOffset=offset;
     const flightLift=authored?sprintClip.clearance[clipIndex]+(sprintClip.clearance[clipIndex+1]-sprintClip.clearance[clipIndex])*clipFraction:sprintLift(cycle);
     this.body.position.y+=this.groundOffset+(pose==='run'?flightLift*this.gait:0)-this.landing*.045;

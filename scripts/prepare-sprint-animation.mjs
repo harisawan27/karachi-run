@@ -6,7 +6,10 @@ const parents=[];j.nodes.forEach((n,i)=>n.children?.forEach(c=>parents[c]=i));
 function values(index){const a=j.accessors[index],v=j.bufferViews[a.bufferView],size={SCALAR:1,VEC3:3,VEC4:4,MAT4:16}[a.type],start=(v.byteOffset??0)+(a.byteOffset??0);return Array.from({length:a.count},(_,i)=>Array.from({length:size},(_,k)=>bin.readFloatLE(start+i*(v.byteStride??size*4)+k*4)));}
 function sample(clip,time){const locals=j.nodes.map(n=>({q:Quaternion.FromArray(n.rotation??[0,0,0,1]),p:Vector3.FromArray(n.translation??[0,0,0]),s:Vector3.FromArray(n.scale??[1,1,1])}));if(clip)for(const c of clip.channels){const sampler=clip.samplers[c.sampler],times=values(sampler.input).flat(),v=values(sampler.output);let k=0;while(k<times.length-2&&time>times[k+1])k++;const f=Math.max(0,Math.min(1,(time-times[k])/(times[k+1]-times[k]))),n=locals[c.target.node];if(c.target.path==='rotation')n.q=Quaternion.Slerp(Quaternion.FromArray(v[k]),Quaternion.FromArray(v[k+1]),f);else if(c.target.path==='translation')n.p=Vector3.Lerp(Vector3.FromArray(v[k]),Vector3.FromArray(v[k+1]),f);else n.s=Vector3.Lerp(Vector3.FromArray(v[k]),Vector3.FromArray(v[k+1]),f);}
 for(let i=0;i<j.nodes.length;i++)if(j.nodes[i].matrix)Matrix.FromArray(j.nodes[i].matrix).decompose(locals[i].s,locals[i].q,locals[i].p);const w=[];function world(i){if(w[i])return w[i];const n=locals[i],m=Matrix.Compose(n.s,n.q,n.p);return w[i]=parents[i]===undefined?m:m.multiply(world(parents[i]));}j.nodes.forEach((_,i)=>world(i));const mirror=Matrix.Identity();return w.map(m=>mirror.multiply(m).multiply(mirror));}
-const bind=sample(null,0),clip=j.animations.find(a=>a.name==='sprint');
+const clipName=process.argv[2]??'sprint';
+if(!['sprint','jump_running'].includes(clipName))throw new Error('Supported clips: sprint, jump_running');
+const jumping=clipName==='jump_running';
+const bind=sample(null,0),clip=j.animations.find(a=>a.name===clipName);
 
 // Offline retarget: bake source world-space rotation changes onto Haris's
 // neutral skeleton. Only compact local rotations ship to the browser.
@@ -40,9 +43,9 @@ function sourceName(name){name=name.replace(/_\d+$/,'').toLowerCase();const side
  if(/^(left|right)arm$/.test(name))return 'arm_upper'+side;if(/forearm/.test(name))return 'arm_lower'+side;return null;
 }
 const mapped=nodes.map(node=>({node,source:j.nodes.findIndex(n=>n.name===sourceName(node.name))})).filter(n=>n.source>=0);
-const duration=5/12,frames=50,tracks=Object.fromEntries(mapped.map(({node})=>[node.name,[]])),clearance=[];
+const duration=jumping?.75:5/12,frames=50,tracks=Object.fromEntries(mapped.map(({node})=>[node.name,[]])),clearance=[];
 for(let frame=0;frame<=frames;frame++){
- const world=sample(clip,frame/frames*duration);
+ const world=sample(clip,jumping?.20+frame/frames*.55:frame/frames*duration);
  for(const {node,source}of mapped){
   const delta=bind[source].clone().invert().multiply(world[source]);
   // Animation channels may contain export scale; rotation retargeting must
@@ -56,10 +59,15 @@ for(let frame=0;frame<=frames;frame++){
    const norm=Math.hypot(rotation.x,rotation.w);
    rotation.set(norm>1e-8?rotation.x/norm:0,0,0,norm>1e-8?rotation.w/norm:1);
   }
+  if(jumping){
+   const angle=2*Math.atan2(rotation.x,rotation.w);
+   if(/hips|spine|shoulder/i.test(node.name))rotation.copyFrom(Quaternion.RotationAxis(Vector3.Right(),Math.max(-.1,Math.min(.30,angle*.30))));
+   if(/^(left|right)arm_/i.test(node.name))rotation.copyFrom(Quaternion.RotationAxis(Vector3.Right(),Math.max(-1.2,Math.min(.5,angle))));
+  }
   let desired=neutral.get(node.name).multiply(Matrix.FromQuaternionToRef(rotation,new Matrix()));
   // Boxman's exaggerated torso pitch reads as a bow on Haris's longer body.
   // Keep the athletic lean while adapting it to the destination proportions.
-  if(!/leg/i.test(node.name))desired=desired.multiply(Matrix.RotationX(-.18));
+  if(!/leg/i.test(node.name))desired=desired.multiply(Matrix.RotationX(jumping?-.08:-.18));
   // Keep the eyes toward the horizon instead of inheriting the source rig's
   // downward head pitch. Neutral world orientation compensates the torso lean
   // through the neck; it does not straighten the rest of the sprint.
@@ -74,7 +82,8 @@ for(let frame=0;frame<=frames;frame++){
 const floor=Math.min(...clearance),range=Math.max(...clearance)-floor;
 // Keep a brief, small airborne interval; the source has different proportions
 // and stretch channels, which must not turn Haris's sprint into floating.
-const data={source:'swift502/Sketchbook build/assets/boxman.glb · sprint · MIT',sourceSha256:createHash('sha256').update(b).digest('hex'),modelSha256:createHash('sha256').update(bytes).digest('hex'),duration,frames,tracks,clearance:clearance.map(y=>{const u=Math.max(0,((y-floor)/range-.6)/.4);return +(.085*u*u*(3-2*u)).toFixed(5);})};
-fs.writeFileSync('src/haris-sprint.mjs','// Retargeted Sketchbook sprint. See art/motion/SKETCHBOOK-LICENSE.txt.\nexport default '+JSON.stringify(data)+';\n');
-console.log(`Baked ${mapped.length} joints × ${frames+1} frames; ${fs.statSync('src/haris-sprint.mjs').size} bytes; source ${data.sourceSha256}`);
+const data={source:'swift502/Sketchbook build/assets/boxman.glb · '+clipName+' · MIT',sourceSha256:createHash('sha256').update(b).digest('hex'),modelSha256:createHash('sha256').update(bytes).digest('hex'),duration,frames,tracks,clearance:clearance.map(y=>{const u=Math.max(0,((y-floor)/range-.6)/.4);return +(.085*u*u*(3-2*u)).toFixed(5);})};
+const output=jumping?'src/haris-jump.mjs':'src/haris-sprint.mjs';
+fs.writeFileSync(output,'// Retargeted Sketchbook '+clipName+'. See art/motion/SKETCHBOOK-LICENSE.txt.\nexport default '+JSON.stringify(data)+';\n');
+console.log(`Baked ${mapped.length} joints × ${frames+1} frames; ${fs.statSync(output).size} bytes; source ${data.sourceSha256}`);
 engine.dispose();

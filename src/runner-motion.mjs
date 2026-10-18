@@ -35,7 +35,7 @@ export function sprintLift(phase){
  return .10*Math.sin(Math.PI*smooth((step-.15)/.85))**2;
 }
 export function flightCoinLane(index){return [0,1,2,1][Math.floor(index/5)%4];}
-export function flightDescent(from,to,elapsed){return elapsed>=1.05?to:from+(to-from)*smooth(elapsed/1.05);}
+export {flightDescent} from './air-movement.mjs';
 export function openingYaw(progress){return Math.PI*(1-smooth((progress-.48)/.25));}
 export function groundCameraRise(height){return Math.min(7.2,Math.max(0,height-2.2)*.90);}
 export function jumpCameraPullback(height){return Math.min(2.4,Math.max(0,height-2.2)*.32);}
@@ -69,8 +69,8 @@ export function jointPose(name,side,phase,mode,gait=1,landing=0,verticalSpeed=0,
   if(arm){pitch=-.90;if(native)roll=-side*1.40;}
   if(elbow)pitch=-1.35;if(spine)pitch=.20*(native?1:3);if(head)pitch=.28;
  }else if(mode==='flight'){
-  if(hip)pitch=-.12;if(knee)pitch=.28;if(arm){pitch=-.22;if(native)roll=-side*1.23;}
-  if(elbow)pitch=-.72;if(foot)pitch=-.08;if(spine)pitch=.015*(native?1:3);
+  if(hip)pitch=-.18+wave*.025;if(knee)pitch=.42+wave*.025;if(arm){pitch=-.28;if(native)roll=-side*1.25;}
+  if(elbow)pitch=-.80;if(foot)pitch=-.10;if(spine)pitch=.015*(native?1:3);if(head)pitch=-.06;
  }else if(mode==='board'){
   if(hip)pitch=-.20;if(knee)pitch=.45;if(arm){pitch=-.35;if(native)roll=-side*1.26;}
   if(elbow)pitch=-.85;if(foot)pitch=-.12;if(spine)pitch=.025*(native?1:3);

@@ -1,3 +1,4 @@
+import {airCameraFov,flightCameraPose} from './air-movement.mjs';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
@@ -30,7 +31,7 @@ const signTexts = [
 export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
   chunks: TransformNode[] = []; runner!: Character; pursuer!: Character; cruiserBoard!: TransformNode; landmark!: TransformNode; skyline:TransformNode|null=null; city!:CityRoute; assets!:LocalAssets; ready!:Promise<void>; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
-  groundHeight=0;airborne=false;flightActive=false;introProgress=0;chaseVisible=true;boardActive=false;private chaiJets:TransformNode|null=null;private chaiJetFlames:Mesh[]=[];private cameraElevation=0;private flightBlend=0;private shakeIntensity=0;private shakeDuration=0;
+  groundHeight=0;airborne=false;verticalVelocity=0;jumpLaunchSpeed=0;flightStage='off';flightActive=false;introProgress=0;chaseVisible=true;boardActive=false;private chaiJets:TransformNode|null=null;private chaiJetFlames:Mesh[]=[];private cameraElevation=0;private flightBlend=0;private shakeIntensity=0;private shakeDuration=0;
   constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
     this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
@@ -198,6 +199,7 @@ export class KarachiWorld {
       this.sign(10,2.4,1.24,0,2.65,-.222,0,root);
       this.box('clearance edge',2.73,.18,.46,0,1.69,0,'red',root);
     }
+    root.metadata={width:2.6,depth:.5,height:kind==='arch'?3.5:1.55};
     this.merge(root);return root;
   }
   coin() {
@@ -343,17 +345,26 @@ export class KarachiWorld {
     this.flightActive=active;
     if(!this.runner?.root)return;
     if(active&&!this.chaiJets){
-      const root=new TransformNode('dhabba chai flight glow',this.scene);root.parent=this.runner.root;root.position.set(0,-.24,.02);this.chaiJets=root;
-      for(const side of [-1,1]){const flame=MeshBuilder.CreateCylinder('chai jet plume',{height:.72,diameterTop:.045,diameterBottom:.22,tessellation:10},this.scene);flame.position.x=side*.25;flame.material=this.mat('chai jet amber','#ffb847');(flame.material as StandardMaterial).emissiveColor=Color3.FromHexString('#ff8b33');(flame.material as StandardMaterial).alpha=.78;flame.parent=root;this.chaiJetFlames.push(flame);}
-      const halo=MeshBuilder.CreateTorus('chai flight halo',{diameter:1.15,thickness:.035,tessellation:24},this.scene);halo.position.y=-.1;halo.rotation.x=Math.PI/2;halo.material=this.mat('chai flight halo','#ffe29a');(halo.material as StandardMaterial).emissiveColor=Color3.FromHexString('#ffd26a');(halo.material as StandardMaterial).alpha=.5;halo.parent=root;
+      const root=new TransformNode('dhaba chai backpack',this.scene);root.parent=this.runner.body;root.position.set(0,1.63,-.31);this.chaiJets=root;
+      this.box('insulated chai boiler',.64,.73,.28,0,0,0,'#d4a057',root);
+      this.box('pack leather harness',.71,.13,.31,0,.18,0,'#69432d',root);
+      for(const side of [-1,1]){
+        this.cyl('copper chai canister',.26,.83,side*.30,0,0,'#dbb26b',root,undefined,18);
+        this.cyl('chai boiler lid',.29,.07,side*.30,.44,0,'#f8df9f',root,undefined,18);
+        this.cyl('jet nozzle',.19,.17,side*.30,-.46,0,'#564838',root,undefined,14);
+        const flame=MeshBuilder.CreateCylinder('chai jet plume',{height:.72,diameterTop:.12,diameterBottom:.025,tessellation:10},this.scene);
+        flame.position.set(side*.30,-.87,0);flame.material=this.mat('chai jet amber','#ffb847');(flame.material as StandardMaterial).emissiveColor=Color3.FromHexString('#ff8b33');(flame.material as StandardMaterial).alpha=.80;flame.parent=root;this.chaiJetFlames.push(flame);
+      }
+      const gauge=this.ball('boiler pressure gauge',.18,0,.17,-.18,'#fff1c0',root);gauge.scaling.z=.3;
+
     }
     this.chaiJets?.setEnabled(active);
   }
   shake(intensity=.2,duration=.25){this.shakeIntensity=Math.max(this.shakeIntensity,intensity);this.shakeDuration=duration;}
-  async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.dispose();this.runner=next;}
+  async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.dispose();this.chaiJets=null;this.chaiJetFlames=[];this.runner=next;if(this.flightActive)this.setChaiActive(true);}
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
-    if(this.chaiJets?.isEnabled()){const pulse=.82+Math.sin(this.time*25)*.18;for(const flame of this.chaiJetFlames)flame.scaling.y=pulse;this.chaiJets.rotation.y=Math.sin(this.time*3)*.035;}
+    if(this.chaiJets?.isEnabled()){const pulse=(this.flightStage==='landing'?.48:1)*(.88+Math.sin(this.time*25)*.12);for(const flame of this.chaiJetFlames)flame.scaling.y=pulse;this.chaiJets.rotation.y=Math.sin(this.time*3)*.035;}
     this.time+=dt;this.travel+=distanceDelta;
     for(const c of this.chunks){c.position.z-=distanceDelta;if(c.position.z< -48)c.position.z+=216;}
     this.city.update(this.travel,this.time);this.assets.update(this.travel);
@@ -367,6 +378,7 @@ export class KarachiWorld {
     if(!playing)this.pursuer.root.position.z+=(-2-this.pursuer.root.position.z)*Math.min(1,dt*4);
     if(this.boardActive){
       const hoverBob=Math.sin(this.time*8.5)*.035;
+      this.cruiserBoard.setEnabled(!this.flightActive);
       this.cruiserBoard.position.set(this.runner.root.position.x,playerY+.06+hoverBob,this.runner.root.position.z);
       this.cruiserBoard.rotation.y=this.runner.root.rotation.y+.30;
       this.cruiserBoard.rotation.z=-this.runner.root.position.x*.042;
@@ -379,20 +391,21 @@ export class KarachiWorld {
       sy=(Math.random()-.5)*this.shakeIntensity;
       this.shakeIntensity*=Math.exp(-dt*7);
     }
-    const jumpHeight=Math.max(0,playerY-this.groundHeight),jumpRise=this.flightBlend<.1?groundCameraRise(jumpHeight):0;
+    const jumpHeight=Math.max(0,playerY-this.groundHeight),jumpRise=!this.flightActive&&this.flightBlend<.1?groundCameraRise(jumpHeight):0;
     this.cameraElevation+=(this.groundHeight+jumpRise-this.cameraElevation)*(1-Math.exp(-dt*(jumpRise>0?14:7)));
-    const jumpBack=this.flightBlend<.1?jumpCameraPullback(jumpHeight):0;
+    const jumpBack=!this.flightActive&&this.flightBlend<.1?jumpCameraPullback(jumpHeight):0;
     const portrait=innerWidth<innerHeight;
     if(!playing&&portrait&&innerWidth<=700)this.pursuer.root.position.set(-1.3,0,2.9);
     const flightTarget=playing?flightCameraTarget(this.flightActive,this.flightBlend,playerY-this.groundHeight):0;this.flightBlend+=(flightTarget-this.flightBlend)*(1-Math.exp(-dt*2.7));
     const desiredGround=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,(portrait?-12.4:-10.8)-jumpBack):portrait&&innerWidth<=700?new Vector3(0,3.3,innerHeight<=700?-9.3:-8):new Vector3(-4.1,7,-14);
     const targetGround=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):portrait&&innerWidth<=700?new Vector3(0,innerHeight<=700?1.05:1.65,0):new Vector3(1,1.8,27);
-    const desiredAir=new Vector3(this.runner.root.position.x*(portrait?.035:.09)+sx,playerY+(portrait?20:18)+sy,portrait?-20:-18);
-    const targetAir=new Vector3(this.runner.root.position.x*(portrait?.025:.07)+sx*.5,Math.max(1.6,this.cameraElevation*.18+1.6)+sy*.3,portrait?24:22);
+    const air=flightCameraPose(playerY,portrait);
+    const desiredAir=new Vector3(this.runner.root.position.x*(portrait?.035:.09)+sx,air.eyeY+sy,air.eyeZ);
+    const targetAir=new Vector3(this.runner.root.position.x*(portrait?.025:.07)+sx*.5,air.targetY+sy*.3,air.targetZ);
     const desired=Vector3.Lerp(desiredGround,desiredAir,this.flightBlend),target=Vector3.Lerp(targetGround,targetAir,this.flightBlend);
-    const factor=1-Math.exp(-dt*(jumpRise>0?9:5));this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const groundFov=!playing&&portrait&&innerWidth<=700?.74:groundRunFov(innerWidth,innerHeight,running?this.speed:14),airFov=portrait?1.28:.99;this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
-    if(running&&this.flightBlend<.1)target.y=frameRunnerTargetY(this.camera.position.y,this.camera.position.z,target.y,target.z,playerY,this.camera.fov);
+    const factor=1-Math.exp(-dt*(this.flightActive||this.flightBlend>.1?8:jumpRise>0?9:5));this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
+    const groundFov=!playing&&portrait&&innerWidth<=700?.74:groundRunFov(innerWidth,innerHeight,running?this.speed:14),airFov=airCameraFov(innerWidth,innerHeight);this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
+    if(playing)target.y=frameRunnerTargetY(this.camera.position.y,this.camera.position.z,target.y,target.z,playerY,this.camera.fov);
     this.camera.setTarget(target);
     if(playing){
       const lateralDist=this.runner.root.position.x;

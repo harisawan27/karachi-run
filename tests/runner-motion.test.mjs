@@ -50,7 +50,7 @@ test('normal jump is brisk and powered jump still clears a full bus at multiple 
  for(const fps of [30,60,120])for(const powered of [false,true]){
   let y=0,v=jumpImpulse(powered),peak=0,elapsed=0;
   while(elapsed<3){const step=stepVertical(y,v,0,0,1/fps,20);y=step.y;v=step.velocity;peak=Math.max(peak,y);elapsed+=1/fps;if(step.landed)break;}
-  assert.ok(powered?peak>8:peak>1.8&&peak<2.3);
+  assert.ok(powered?peak>7&&peak<7.1:peak>1.8&&peak<2.3);
   assert.ok(powered?elapsed<1.6:elapsed>.65&&elapsed<.8);
  }
 });

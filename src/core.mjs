@@ -1,7 +1,7 @@
 import {normalizeProgression,mergeProgression} from './progression.mjs';
 export const SAVE_KEY = 'karachi-run.save.v1';
 export const LANES = [-3.15, 0, 3.15];
-export function jumpImpulse(bounceActive=false){return bounceActive?23.8:11.6;}
+export function jumpImpulse(bounceActive=false){return bounceActive?21.2873671458:11.6;}
 export function sideBumpResponse(previousX,obstacle){
  const side=Math.sign(previousX-obstacle.x)||1;
  const x=obstacle.x+side*((obstacle.width??2.6)/2+.32);
@@ -109,9 +109,24 @@ export function collides(player, obstacle) {
   const nearZ = Math.min(obstacle.previousZ ?? obstacle.z, obstacle.z);
   const farZ = Math.max(obstacle.previousZ ?? obstacle.z, obstacle.z);
   if (nearZ > obstacle.depth / 2 + .4 || farZ < -obstacle.depth / 2 - .4) return false;
-  if (obstacle.kind === 'barrier') return player.y < 1.12;
-  if (obstacle.kind === 'arch') return !player.sliding || player.y > 0.25;
-  return player.y < obstacle.height;
+  let lowY=player.y,highY=player.y;
+  if(Number.isFinite(player.previousY)){
+    // Use height during overlap, not after the runner has left a moving roof.
+    const interval=(from,to,min,max)=>{
+      const d=to-from;if(Math.abs(d)<1e-9)return from>=min&&from<=max?[0,1]:null;
+      const a=(min-from)/d,b=(max-from)/d;return [Math.max(0,Math.min(a,b)),Math.min(1,Math.max(a,b))];
+    };
+    const hz=obstacle.depth/2+.4;
+    const z=interval(obstacle.previousZ??obstacle.z,obstacle.z,-hz,hz);
+    const x=interval(player.previousX??player.x,player.x,obstacle.x-halfWidth,obstacle.x+halfWidth);
+    if(!z||!x)return false;
+    const entry=Math.max(z[0],x[0]),exit=Math.min(z[1],x[1]);if(entry>exit)return false;
+    const y0=player.previousY+(player.y-player.previousY)*entry,y1=player.previousY+(player.y-player.previousY)*exit;
+    lowY=Math.min(y0,y1);highY=Math.max(y0,y1);
+  }
+  if (obstacle.kind === 'barrier') return lowY < 1.12;
+  if (obstacle.kind === 'arch') return lowY < (obstacle.height??3.5) && (!player.sliding || highY > 0.25);
+  return lowY < obstacle.height;
 }
 export function reviveCost(used) { return used === 0 ? 0 : Math.min(200, 25 * 2 ** Math.min(used - 1, 3)); }
 export function buyRevive(save, used) { const cost = reviveCost(used); if (save.coins < cost) return null; return { ...save, coins: save.coins - cost }; }
