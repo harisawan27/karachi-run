@@ -40,8 +40,8 @@ export class LocalAssets {
       normal.metadata=fit;normal.setEnabled(false);this.templates.push(normal);
     }
     for(const chunk of this.world.chunks)for(const old of chunk.getChildren())if(old instanceof TransformNode&&old.name==="rickshaw"){const parked=this.vehicle("rickshaw");parked.parent=chunk;parked.position.copyFrom(old.position);parked.rotation.copyFrom(old.rotation);old.dispose();}
-    for(let i=0;i<6;i++){const root=this.copy(4+i%2);root.position.x=i%2?7.6:-7.6;root.rotation.y=i%2?-.3:.3;this.stalls.push({root,offset:i*32});}
-    this.openingStall=this.copy(5);this.openingStall.position.set(-5.7,0,1.8);
+    for(let i=0;i<6;i++){const root=this.copy(4+i%2);root.position.x=i%2?7.6:-7.6;root.rotation.y=i%2?-.3:.3;root.setEnabled(false);this.stalls.push({root,offset:i*32});}
+    this.openingStall=this.copy(5);this.openingStall.position.set(-5.7,0,1.8);this.update(this.world.travel);
   }
   private fallback(i:number){
     const scene=this.world.scene,root=new TransformNode(`fallback street asset ${i}`,scene);
@@ -62,7 +62,20 @@ export class LocalAssets {
   private copy(i:number){const root=this.templates[i].clone('Karachi street asset',null)!;root.metadata=this.templates[i].metadata;root.setEnabled(true);return root;}
   rooftop(){return this.copy(1);}
   vehicle(kind:'bus'|'rickshaw'){return this.copy(kind==='bus'?(this.serial++%3===2?1:0):2+this.serial++%2);}
-  update(travel:number){this.openingStall?.setEnabled(this.world.mode==='menu'||this.world.mode==='intro');for(const stall of this.stalls){const z=((stall.offset-travel)%192+192)%192-20;stall.root.position.z=z;stall.root.setEnabled(travel<8||environmentAt(travel+z).kind!=='street');}}
+  private stallCanShow(travel:number,z:number){
+    if(environmentAt(travel+z).kind==='street')return false;
+    // Match the visible street chunks, including shop depth and the stall's footprint.
+    // A route boundary can pass through a chunk before its shop facade disappears.
+    return !this.world.chunks.some(chunk=>chunk.isEnabled()&&z>chunk.position.z-7&&z<chunk.position.z+16);
+  }
+  update(travel:number){
+    const opening=this.openingStall;
+    if(opening)opening.setEnabled((this.world.mode==='menu'||this.world.mode==='intro')&&this.stallCanShow(travel,opening.position.z));
+    for(const stall of this.stalls){
+      const z=((stall.offset-travel)%192+192)%192-20;
+      stall.root.position.z=z;stall.root.setEnabled(this.stallCanShow(travel,z));
+    }
+  }
 }
 
 

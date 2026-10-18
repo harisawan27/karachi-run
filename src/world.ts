@@ -18,6 +18,7 @@ import { LocalAssets } from './local-assets';
 import { mazda } from './mazda';
 import { mazar } from './landmarks';
 import { CityRoute } from './city-route';
+import { coastalPalm, planter, streetLamp, roadBarricade, citySkyline, batchScenery } from './scenery';
 
 export type ObstacleKind = 'bus' | 'barrier' | 'arch' | 'rickshaw';
 type Parent = TransformNode | null;
@@ -77,10 +78,7 @@ export class KarachiWorld {
     const p=MeshBuilder.CreatePlane('hand-painted Urdu board',{width:w,height:h},this.scene);const i=index%16,u=(i%4)/4,v=1-Math.floor(i/4)/4;
     p.setVerticesData(VertexBuffer.UVKind,[u,v-.25,u+.25,v-.25,u+.25,v,u,v]);p.material=this.signMat;p.position.set(x,y,z);p.rotation.y=rotation;p.parent=parent;return p;
   }
-  merge(parent:TransformNode) {
-    const groups=new Map<StandardMaterial,Mesh[]>();parent.getChildMeshes(false).forEach(m=>{if(m instanceof Mesh && m.material){const mat=m.material as StandardMaterial;const group=groups.get(mat)||[];group.push(m);groups.set(mat,group);}});
-    groups.forEach(meshes=>{if(meshes.length<2)return;const merged=Mesh.MergeMeshes(meshes,true,true,undefined,false,false);if(merged)merged.parent=parent;});
-  }
+  merge(parent:TransformNode) {batchScenery(parent);}
   makeStreet() {
     this.box('road',13,.14,410,0,-.11,120,'asphalt');
     for(const side of [-1,1]) {
@@ -89,7 +87,7 @@ export class KarachiWorld {
     }
     const far=new TransformNode('distant Karachi skyline',this.scene);
     this.skyline=far;
-    for(let i=0;i<28;i++){const side=i%2?1:-1;const x=side*(11+(i%7)*4.8);const y=8+(i*7%13);this.box('city silhouette',4,y,5,x,y/2,148+(i%4)*9,i%3?'sand':'cream',far);this.box('rooftop silhouette',1.7,2,1.7,x,y+1,148+(i%4)*9,'cream',far);}
+    citySkyline(this,far);
     this.merge(far);
     const sun=this.ball('afternoon sun',13,-38,58,165,'#ffeed0');const sm=this.mat('sun','#ffeed0');sm.unfreeze();sm.emissiveColor=Color3.FromHexString('#ffeed0');sm.disableLighting=true;sm.freeze();sun.material=sm;
     for(let i=0;i<6;i++){const cloud=this.ball('sea breeze cloud',13,-50+i*20,42+(i%3)*4,120+i%3*15,'#dbe6d9');cloud.scaling.set(2,.23,.7);}
@@ -108,7 +106,12 @@ export class KarachiWorld {
       if(index%3===0)for(let i=0;i<12;i++){const x=-6+i*1.08;const flag=this.box('festival bunting',.46,.63,.025,x,8.05+Math.abs(x)*.045,8,i%3?'green':'white',root);flag.rotation.z=(i%2?.15:-.15);}
     }
     if(index===2||index===7){this.sign(2,10.7,1.8,0,10.1,4,0,root);for(const x of [-5.8,5.8])this.cyl('banner post',.13,11,x,5.5,4,'dark',root);}
-    if(index%3===0)this.fruitCart(root,-7.5,6);
+    if(index%3===1)streetLamp(this,root,-7,14,-1);
+    if(index%3===2)planter(this,root,7.0,1,true);
+    for(const side of [-1,1]){
+      this.box('pavement inset edge',.08,.018,18,side*6.86,.19,7.5,'#968e7a',root);
+      for(let z=0;z<18;z+=1.5)this.box('sidewalk paving joint',.60,.012,.022,side*7.1,.19,z,'#968e7a',root);
+    }
     if(index%3===1)this.parkedRickshaw(root,7.7,5);
     this.merge(root);root.position.z=index*18-36;return root;
   }
@@ -142,12 +145,7 @@ export class KarachiWorld {
     if(seed%3===0){this.cyl('flagpole',.055,3,side*7.7,height+1.5,z-3,'dark',root);this.box('Pakistan flag',.03,1.1,1.65,side*7.7,height+2.3,z-2.2,'green',root);this.box('flag white stripe',.045,1.1,.26,side*7.7,height+2.3,z-2.86,'white',root);const moon=this.ball('crescent',.64,side*7.66,height+2.3,z-2.1,'white',root);moon.scaling.x=.055;const cut=this.ball('crescent cutout',.56,side*7.64,height+2.39,z-2.02,'green',root);cut.scaling.x=.05;}
     if(seed%2===0){this.box('air conditioner',.62,.55,.95,side*7.03,4.25,z+2.7,'white',root);this.box('AC grill',.02,.32,.64,side*6.7,4.25,z+2.7,'dark',root);}
   }
-  palm(root:TransformNode,x:number,z:number,scale:number) {
-    const p=new TransformNode('palm tree',this.scene);p.parent=root;p.position.set(x,0,z);
-    const trunk=this.cyl('palm trunk',.27,7,0,3.5,0,'sand',p,.17);trunk.rotation.z=x>0?-.08:.08;
-    for(let i=0;i<7;i++){const a=i*Math.PI*2/7;const points=[new Vector3(.25,7,0),new Vector3(Math.cos(a)*1.1,7.8,Math.sin(a)*1.1),new Vector3(Math.cos(a)*2.6,7.35,Math.sin(a)*2.6),new Vector3(Math.cos(a)*3.1,6.3,Math.sin(a)*3.1)];const leaf=MeshBuilder.CreateTube('palm frond',{path:points,radius:.16,radiusFunction:(j)=>[.1,.27,.19,.01][j],tessellation:3},this.scene);leaf.parent=p;leaf.material=this.mat('leaf');}
-    p.scaling.setAll(scale);
-  }
+  palm(root:TransformNode,x:number,z:number,scale:number) {return coastalPalm(this,root,x,z,scale,Math.round(z+Math.abs(x)));}
   fruitCart(root:TransformNode,x:number,z:number) {
     this.box('fruit cart',1.5,.65,2.6,x,.95,z,'teal',root);
     for(const dz of [-.9,.9]){const wheel=this.cyl('cart wheel',.62,.16,x,.45,z+dz,'dark',root);wheel.rotation.z=Math.PI/2;}
@@ -189,15 +187,20 @@ export class KarachiWorld {
     if(kind==='bus'||kind==='rickshaw')return this.assets.vehicle(kind);
     const root=new TransformNode(kind,this.scene);
     if(kind==='barrier'){
-      for(const x of [-1,1]){this.box('barrier foot',.42,.16,.8,x,.09,0,'dark',root);this.box('barrier leg',.14,1.35,.15,x,.7,0,'dark',root);}
-      this.box('road barricade',2.55,.7,.3,0,.95,0,'yellow',root);
-      for(let x=-.94;x<=1;x+=.65)this.box('hazard stripe',.29,.73,.015,x,.95,-.163,'dark',root).rotation.z=-.35;
-      this.cyl('warning lamp',.17,.12,-1,1.54,0,'red',root);
+      roadBarricade(this,root);
     }else{
       for(const x of [-1.23,1.23])this.box('gantry post',.18,3.45,.4,x,1.725,0,'teal',root);
       this.box('low overhead board',2.73,1.75,.42,0,2.6,0,'yellow',root);
       this.sign(10,2.4,1.24,0,2.65,-.222,0,root);
       this.box('clearance edge',2.73,.18,.46,0,1.69,0,'red',root);
+      this.box('gantry top trim',2.73,.08,.46,0,3.44,0,'#294d50',root);
+      for(const side of [-1,1]){
+        this.box('gantry bolted base',.35,.11,.48,side*1.23,.07,0,'#294d50',root);
+        this.box('reflective post face',.10,1.2,.025,side*1.23,.84,-.215,'#e7b94f',root);
+        for(const y of [.3,.8,1.3])this.box('post reflector',.11,.13,.026,side*1.23,y,-.23,'#f2dfae',root);
+        this.ball('gantry fixing',.07,side*1.18,3.34,-.24,'#f2dfae',root);
+      }
+      for(let x=-1.15;x<1.2;x+=.32)this.box('clearance edge reflector',.14,.075,.025,x,1.69,-.242,'#f2dfae',root);
     }
     root.metadata={width:2.6,depth:.5,height:kind==='arch'?3.5:1.55};
     this.merge(root);return root;
