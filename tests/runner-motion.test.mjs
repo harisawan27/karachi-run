@@ -44,7 +44,7 @@ test('authored sprint has contact, strong heel recovery, and a seamless loop',()
  assert.ok(sprintPose(.76*Math.PI*2).hip<-.9,'forward knee drive');
  for(const key of ['hip','knee','ankle'])assert.ok(Math.abs(sprintPose(-.00001)[key]-sprintPose(.00001)[key])<.001);
  assert.equal(sprintLift(0),0);assert.ok(sprintLift(Math.PI*.55)>.05);
- assert.ok(ROLL_DURATION>=.45&&ROLL_DURATION<=.6);
+ assert.equal(ROLL_DURATION,.54);
 });
 test('normal jump is brisk and powered jump still clears a full bus at multiple frame rates',()=>{
  for(const fps of [30,60,120])for(const powered of [false,true]){
@@ -77,4 +77,18 @@ test('powered-jump camera keeps the full runner inside portrait and landscape fr
    assert.ok(head<(portrait?1.2:.87)/2-.025,JSON.stringify({portrait,fps,floor,i,y,cy,cz,elevation,head,limit:(portrait?1.2:.87)/2-.025}));
   }
  }
+});
+
+import {contactKind} from '../src/core.mjs';
+test('timely and last-moment rolls clear the entire gate at every run speed and frame rate',()=>{
+ for(const fps of [30,60,120])for(const speed of [14,22,32])for(const lead of [.08,.25,.4]){
+  const dt=1/fps;let remaining=ROLL_DURATION,z=speed*lead;let passed=false;
+  for(let t=0;t<1.2;t+=dt){
+   const previousZ=z;z-=speed*dt;remaining=Math.max(0,remaining-dt);
+   assert.equal(contactKind({x:0,previousX:0,y:0,sliding:remaining>0},{x:0,z,previousZ,width:2.6,depth:.5,height:3.3,kind:'arch'}),'none',`roll expired inside gate: ${fps} FPS, speed ${speed}, lead ${lead}`);
+   if(z<-.65-speed*dt)passed=true;
+  }
+  assert.ok(passed);assert.equal(remaining,0,'roll must end after the gate');
+ }
+ assert.equal(contactKind({x:0,y:0,sliding:false},{x:0,z:0,width:2.6,depth:.5,height:3.3,kind:'arch'}),'direct','standing in a gate must still crash');
 });

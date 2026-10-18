@@ -11,7 +11,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
-import { flightCameraTarget, groundCameraRise, jumpCameraPullback, frameRunnerTargetY, openingYaw } from './runner-motion.mjs';
+import { flightCameraTarget, groundCameraRise, jumpCameraPullback, frameRunnerTargetY, openingYaw, groundRunFov } from './runner-motion.mjs';
 import { ModelCharacter as Character } from './model-character';
 import { LocalAssets } from './local-assets';
 import { mazda } from './mazda';
@@ -350,7 +350,7 @@ export class KarachiWorld {
     this.chaiJets?.setEnabled(active);
   }
   shake(intensity=.2,duration=.25){this.shakeIntensity=Math.max(this.shakeIntensity,intensity);this.shakeDuration=duration;}
-  async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.root.dispose();old.shadow.dispose();this.runner=next;}
+  async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.dispose();this.runner=next;}
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
     if(this.chaiJets?.isEnabled()){const pulse=.82+Math.sin(this.time*25)*.18;for(const flame of this.chaiJetFlames)flame.scaling.y=pulse;this.chaiJets.rotation.y=Math.sin(this.time*3)*.035;}
@@ -391,7 +391,7 @@ export class KarachiWorld {
     const targetAir=new Vector3(this.runner.root.position.x*(portrait?.025:.07)+sx*.5,Math.max(1.6,this.cameraElevation*.18+1.6)+sy*.3,portrait?24:22);
     const desired=Vector3.Lerp(desiredGround,desiredAir,this.flightBlend),target=Vector3.Lerp(targetGround,targetAir,this.flightBlend);
     const factor=1-Math.exp(-dt*(jumpRise>0?9:5));this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const groundFov=(!playing&&portrait&&innerWidth<=700?.74:portrait?1.2:.87)+(running?Math.min(.10,(this.speed-14)*.006):0),airFov=portrait?1.28:.99;this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
+    const groundFov=!playing&&portrait&&innerWidth<=700?.74:groundRunFov(innerWidth,innerHeight,running?this.speed:14),airFov=portrait?1.28:.99;this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
     if(running&&this.flightBlend<.1)target.y=frameRunnerTargetY(this.camera.position.y,this.camera.position.z,target.y,target.z,playerY,this.camera.fov);
     this.camera.setTarget(target);
     if(playing){

@@ -5,8 +5,16 @@ export function stepLane(x,velocity,target,dt){
  return Math.abs(next-target)<.002&&Math.abs(nextVelocity)<.025?{x:target,velocity:0}:{x:next,velocity:nextVelocity};
 }
 export function flightCameraTarget(active,blend,height){return active?clamp(height/12,0,1):blend>.05&&height>3?1:0;}
+// Keep the same usable horizontal view on tall phones. A fixed vertical FOV
+// alone crops the outer lanes as the screen gets narrower.
+export function groundRunFov(width,height,speed=14){
+ const aspect=Math.max(.2,width/Math.max(1,height));
+ const base=width<height?Math.max(1.2,2*Math.atan(Math.tan(.365)/aspect)):.87;
+ return base+clamp((speed-14)*.006,0,.10);
+}
 // Hand-authored stride keys: contact, compression, push-off, heel recovery,
 // knee drive, extension. The stance and recovery have different timings.
+// Restore the original continuous tucked roll, without a crouch hold.
 export const ROLL_DURATION=.54;
 const STRIDE=[
  [0,-.62,.16,-.08],[.12,-.32,.48,.10],[.30,.48,.20,-.24],

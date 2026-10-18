@@ -1,0 +1,36 @@
+/* The approved game artwork replaces the old K monogram throughout the shell. */
+.brand .brand-mark{width:48px;height:48px;transform:none;background:none;border-radius:0;box-shadow:none;flex:none}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:contain}
+#home-panel h1.lobby-logo{font-size:0;line-height:0;letter-spacing:0;transform:none;-webkit-text-stroke:0;text-shadow:none;margin:12px 0 6px;filter:drop-shadow(0 5px 8px #001f2580)}
+.lobby-logo img{display:block;width:min(100%,clamp(210px,36vh,350px));height:auto;margin-inline:auto;animation:brand-float 4s ease-in-out infinite;pointer-events:none}
+.loading{background:radial-gradient(ellipse at 50% 40%,#19785b,#0b443b 48%,#082b2d);text-align:center;padding:24px;gap:18px}
+.loading .loading-logo{width:min(290px,72vw);height:auto;filter:drop-shadow(0 9px 20px #001c2677);animation:brand-float 4s ease-in-out infinite}
+.loading .loading-icon{width:78px;height:78px;object-fit:contain;filter:drop-shadow(0 5px 8px #001c2677)}
+.loading p{max-width:90vw;line-height:1.7;margin:0;color:#fff0b8;font-weight:800;font-size:11px}
+.loading-track{height:6px;width:170px;border-radius:8px;background:#032e2d;border:1px solid #4e8d68;box-shadow:0 2px #001e28}
+.loading-track:after{border-radius:8px;background:linear-gradient(90deg,#ffc742,#fff5ba)}
+.install-shortcut{position:absolute;z-index:2;top:calc(env(safe-area-inset-top,0px) + 89px);right:max(20px,env(safe-area-inset-right));display:flex;align-items:center;gap:8px;min-height:48px;padding:5px 12px 5px 5px;border:2px solid #f7dd85;border-radius:16px;color:#fff5cc;background:linear-gradient(#218069,#10533e);box-shadow:0 4px 0 #072f2a,0 5px 14px #002f2644;text-align:left;cursor:pointer}
+.install-shortcut>img{width:38px;height:38px;object-fit:contain}.install-shortcut>span{display:flex;flex-direction:column;gap:2px}.install-shortcut b{font:900 16px/1 'Barlow Condensed',sans-serif;letter-spacing:.05em}.install-shortcut small{font-size:8px;font-weight:800;letter-spacing:.04em;color:#e5efc7}.install-shortcut>svg{width:18px;height:18px;fill:none;stroke:#ffdf75;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.install-shortcut:active{transform:translateY(3px);box-shadow:0 1px 0 #072f2a}
+.playing .install-shortcut,.opening .install-shortcut{display:none}
+.pwa-hero{display:block;width:96px;height:96px;object-fit:contain;margin:0 auto 14px;filter:drop-shadow(0 6px 8px #00251d80)}
+.modal:has(.pwa-hero){background:radial-gradient(ellipse at 50% 0,#2b7b4c80,transparent 48%),linear-gradient(#134c3d,#10372f);border:2px solid #e2d582;box-shadow:0 6px 0 #06271e,0 16px 70px #001d2c99}
+.modal:has(.pwa-hero) h2{font-size:clamp(32px,9vw,45px);margin:14px 0 10px}.pwa-steps{list-style:none;counter-reset:install;display:grid;gap:10px;padding:0;margin:18px 0;text-align:left}.pwa-steps li{counter-increment:install;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;line-height:1.5;color:#fff3cc}.pwa-steps li:before{content:counter(install);flex:none;display:grid;place-items:center;width:29px;height:29px;background:#ffcf63;border:2px solid #fff0b3;border-radius:50%;color:#194c36;font-weight:900;box-shadow:0 2px #976d2d}.modal .pwa-footnote{font-size:11px;line-height:1.6;color:#d9e5cb}
+.pwa-offline{margin:18px 0 0;padding:14px;border:1px solid #7bba85;border-radius:18px;background:#072f2c88;text-align:left}.pwa-offline strong{font-size:14px;color:#ffe090}.pwa-offline p{font-size:11px;margin:6px 0 10px;line-height:1.5}.pwa-offline progress{display:block;width:100%;height:8px;accent-color:#ffd364;margin:10px 0}.pwa-action{width:100%;min-height:46px;border:2px solid #ffeaa4;border-radius:14px;background:linear-gradient(#ffe28a,#f5b63b);box-shadow:0 3px #95672c;color:#174c37;font:900 16px 'Barlow Condensed',sans-serif;letter-spacing:.04em;padding:8px 12px}.pwa-action:disabled{opacity:.6;cursor:default}.pwa-action:active{transform:translateY(2px);box-shadow:0 1px #95672c}
+.pwa-settings{display:grid;grid-template-columns:54px minmax(0,1fr);gap:11px;align-items:center;text-align:left;border:1px solid #a2cb8b;border-radius:17px;padding:12px;margin:18px 0;background:#174f3e}.pwa-settings img{width:54px;height:54px;object-fit:contain}.pwa-settings b{color:#ffe195;font-size:15px}.pwa-settings p{font-size:11px;margin:4px 0 0}.pwa-settings .pwa-action{grid-column:1/-1}.pwa-update{margin-top:12px}.pwa-update small{display:block;margin-bottom:8px;font-size:11px;color:#fff0c2}.pwa-status{min-height:18px}
+@keyframes brand-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-3px) rotate(1deg)}}
+@media(max-width:700px) and (orientation:portrait){
+ #home-panel h1.lobby-logo{top:calc(env(safe-area-inset-top,0px) + 112px);left:50%;width:min(49vw,200px);margin:0;transform:translateX(-50%);pointer-events:none}
+ .lobby-logo img{width:100%;animation:brand-float 4s ease-in-out infinite}
+ #home-panel .title-urdu{top:calc(env(safe-area-inset-top,0px) + 242px);font-size:13px}
+ .install-shortcut{top:auto;right:12px;bottom:calc(var(--nav-safe,90px) + 114px);min-height:48px;border-radius:15px;padding:4px 8px 4px 4px;gap:5px}
+ .install-shortcut>img{width:32px;height:32px}.install-shortcut b{font-size:14px}.install-shortcut small{font-size:7px}.install-shortcut>svg{display:none}
+ .modal:has(.pwa-hero){padding:24px 20px}.pwa-hero{width:83px;height:83px;margin-bottom:9px}
+}
+@media(max-width:700px) and (orientation:portrait) and (max-height:700px){
+ #home-panel h1.lobby-logo{top:calc(env(safe-area-inset-top,0px) + 101px);width:min(43vw,170px)}
+ #home-panel .title-urdu{display:none}
+ .install-shortcut{bottom:calc(var(--nav-safe,90px) + 104px)}
+}
+@media(max-height:570px) and (orientation:portrait){#home-panel h1.lobby-logo{width:132px;top:98px}.install-shortcut>span small{display:none}.install-shortcut{min-height:44px}}
+@media(orientation:landscape) and (max-height:580px){#home-panel h1.lobby-logo{margin:0 0 6px}.lobby-logo img{width:150px;max-height:90px;object-fit:contain}.install-shortcut{top:75px;right:18px}.brand-float{animation:none}}
+@media(prefers-reduced-motion:reduce){.lobby-logo img,.loading .loading-logo{animation:none}}

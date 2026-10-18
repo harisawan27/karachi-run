@@ -4,7 +4,17 @@
 
 Karachi Run is an independent project. It uses familiar three-lane endless-runner controls, with original code, city scenery, interface, and game assets. Its districts and landmarks are stylized interpretations arranged into a compressed game route; the course is not a surveyed or geographically exact map.
 
-> **Project status:** playable browser prototype / beta foundation. Runs, coins, settings, missions, character selection, the store, Google account sign-in, and per-account cloud saves are implemented. Neon Auth, the Data API, and the save-table security migration are connected; New deployments must configure their public service URLs and trusted domains in Neon. The project does not currently provide online leaderboards, real-money purchases, advertising, or a published Android/iOS app. See [LAUNCH-PLAN.md](LAUNCH-PLAN.md) for the current release gates.
+> **Project status:** playable browser prototype / beta foundation. Runs, coins, settings, missions, character selection, the store, Google account sign-in, and per-account cloud saves are implemented. Neon Auth, the Data API, and the save-table security migration are connected; New deployments must configure their public service URLs and trusted domains in Neon. An installable PWA and optional offline game download are implemented. The project does not currently provide online leaderboards, real-money purchases, advertising, or a published Android/iOS store app. See [LAUNCH-PLAN.md](LAUNCH-PLAN.md) for the current release gates.
+
+### Haris movement pass — October 18
+
+Haris now uses a retargeted, MIT-licensed sprint clip from [Sketchbook](https://github.com/swift502/Sketchbook). Sixteen joints, including both clavicles, follow sampled animation rotations, preserving his supplied model and bone lengths. Grounding includes a short airborne interval; running remains separate from gameplay collision height. Startup cadence is integrated consistently at different refresh rates, and the portrait camera preserves a minimum horizontal view on tall phones. The limb retarget uses forward-and-back hinges to avoid leg splay and upper-arm twist; the arm drop is shared across the shoulder and upper arm. The head faces the horizon during the sprint. Rolls use the original continuous 0.54-second tumble, without a crouch hold. Jump, flight, board and the other characters retain their previous motion in this pass.
+
+Start the development server and open [/movement-lab.html](http://127.0.0.1:5173/movement-lab.html) for a repeatable 45-second course with New Sprint/Previous and Chase/Side views, phone swipes, buses, a roof ramp, a jump barrier and a roll obstacle. The lab imports no account or save code and never changes player progression; it is a development entry, excluded from the production build. The new sprint is also enabled for Haris in the main game.
+
+Frequent coin/mission updates now batch local persistence at 200 ms intervals instead of writing on every animation frame. Run end, crash, pause and page exit still checkpoint immediately through the existing cloud queue. Coin feedback uses animation without a forced layout read. These changes remove known sources of avoidable main-thread work; they do not establish a measured phone frame rate.
+
+Animation provenance, regeneration and license: [art/motion/README.md](art/motion/README.md). Automated checks cover real-model deformation and grounding at 30/60/120 FPS, loop continuity, model hashes and bounded persistence. Browser and phone playtesting remain necessary to judge feel.
 
 ### Phase 1: game feel and movement polish — complete
 
@@ -39,12 +49,14 @@ Apply [migration 004](db/migrations/004_progression_rewards.sql) after migration
 Vehicle/chase framing update: rickshaws use their exact earlier fit (3.15 height / 2.7 width caps), the passenger bus is about 20% larger, and cargo trucks retain their previous size. Imported and fallback collider sizes follow their visual models. The warden now loses ground behind the camera at full opacity, then closes the distance after a bump. Powered jumps raise and slightly pull back the ground camera to keep the full runner visible in portrait and landscape; normal jumps and Chai flight keep their separate framing.
 
 
-The athletic movement pass uses a handcrafted key-pose sprint cycle (contact, compression, push-off, heel recovery, knee drive and extension), with a roughly 0.42–0.38-second cycle as speed grows. Footstep sounds follow the actual stride phase. Rolls recover in 0.54 seconds; normal jumps have a brisker arc, while Peshawari Bounce preserves clearance above full-size buses. The stall opening turns Haris toward the route before the escape. Ordinary jumps leave the camera steady, and high jumps receive only a limited elevation adjustment.
+The athletic movement pass uses a handcrafted key-pose sprint cycle (contact, compression, push-off, heel recovery, knee drive and extension), with a roughly 0.42–0.38-second cycle as speed grows. Footstep sounds follow the actual stride phase. Rolls use the original continuous 0.54-second tumble; normal jumps have a brisker arc, while Peshawari Bounce preserves clearance above full-size buses. The stall opening turns Haris toward the route before the escape. Ordinary jumps leave the camera steady, and high jumps receive only a limited elevation adjustment.
 
-Street phrases now include optional jump-arc and low roll coin lines with an open bypass, plus regular breather rows. Oncoming traffic and continuous truck roofs retain their safety checks. Chai flight keeps a reachable five-coin dwell in each lane, warns before ending, and eases down over 1.05 seconds. All character motion remains original key-pose/procedural animation on the supplied rigs; no external motion-capture clips are bundled.
+Imran and Asim use the shared procedural fallback driver for sprint cadence, arm counter-swing, knee recovery, ankle motion, jumps, tucked rolls, board balance, flight and landing. Haris now uses the separate retargeted Sketchbook clip for his grounded sprint; the remaining actions still use that shared driver. Their static scans receive a fitted 18-joint humanoid skeleton, a neutralized baked foot stagger and corrected rest-angle retargeting. Imran's arm weights are smoothed over welded mesh topology so hands and sleeves move together while the loose kameez stays with the torso. Locker previews retain their separate static presentation. Character ownership, selection and cloud saves are unchanged. Real-model tests run the actual animation class through Babylon's headless engine; an artist-authored rig would still offer finer cloth deformation.
+
+Street phrases now include optional jump-arc and low roll coin lines with an open bypass, plus regular breather rows. Oncoming traffic and continuous truck roofs retain their safety checks. Chai flight keeps a reachable five-coin dwell in each lane, warns before ending, and eases down over 1.05 seconds. Haris’s grounded sprint uses the licensed Sketchbook animation described above; other actions use the shared procedural driver.
 
 
-The movement pass adds frame-rate-independent damped lane changes, blended run/jump/roll/board/flight poses, moderated sprint limb angles, articulated elbows in their moving parent frame, and a hip-centred tucked roll. Foot grounding reads the current skeletal pose rather than the previous rendered frame, and rooftop shadows follow the deck height. Normal and sneaker jumps retain the ground-following camera; the city-flight camera activates only for Chai flight. Flight altitude and its coin trail share a fixed pickup elevation, so passing traffic cannot move them up and down. Touch gestures use a phone-sized threshold, recognize fast swipes on release, and discard cancelled gestures. The 2.4-second opening blends the stall escape into the run. These animations still use the supplied rigs procedurally; no authored motion-capture clips have been added.
+The movement pass adds frame-rate-independent damped lane changes, blended run/jump/roll/board/flight poses, moderated sprint limb angles, articulated elbows in their moving parent frame, and a hip-centred tucked roll. Foot grounding reads the current skeletal pose rather than the previous rendered frame, and rooftop shadows follow the deck height. Normal and sneaker jumps retain the ground-following camera; the city-flight camera activates only for Chai flight. Flight altitude and its coin trail share a fixed pickup elevation, so passing traffic cannot move them up and down. Touch gestures use a phone-sized threshold, recognize fast swipes on release, and discard cancelled gestures. The 2.4-second opening blends the stall escape into the run. Jump, roll, flight and board actions use the shared procedural driver; Haris’s grounded sprint uses the licensed clip described above.
 
 
 Peshawari Bounce now boosts every jump input, including buffered jumps, high enough to clear a full-size bus or truck. Vehicle roofs support descending landings and remain walkable when the power expires. Side brushes recoil into a clear lane with a brief recovery window, bringing the Warden closer instead of turning the same contact into a fatal head-on hit; another stumble within five seconds can still end a run. The portrait lobby presents the full 3D runner and Warden in the street scene, with floating records, an arcade logo, a pulsing Tap to Run button, and thumb-sized navigation. Compact phone layouts keep the character and play control clear.
@@ -91,6 +103,22 @@ Make a short, deliberate swipe. A direct body hit ends the run. A glancing conta
 - The City screen lets you choose a district as the starting point. A run then continues across all eight districts and loops back to the start.
 
 ## Run locally
+
+### Installable game and approved branding
+
+The approved Karachi Run artwork replaces the K placeholder in the browser favicon, header, illustrated lobby title, initial page splash, 3D loading screen, loading-error screen, install panel and app icons. Original approved PNGs and prompts remain in `art/branding/`. `node scripts/prepare-branding.mjs` exports the PNG/ICO/WebP sizes without redrawing the artwork; the production build runs it automatically. Apple receives an opaque touch icon, and Android has a separate full-bleed maskable icon with the wordmark inside its central safe area.
+
+The lobby's **Install Game** shortcut and Settings open the same install panel. Chromium browsers use their native prompt when available; other browsers receive instructions, including Share → Add to Home Screen on iPhone/iPad. The shortcut hides after an installation event or inside a standalone app window. The manifest uses a stable root identity, standalone display and either screen orientation. Installation availability depends on the browser. On a device that opens the installed app with separate browser storage, sign into the same Google account from Profile to recover cloud progression.
+
+**Save for Offline** is optional: it downloads the city's runtime models, all three runners and character portraits, with actual progress and a storage/network retry state. The panel displays the pack's size from the current build. Ordinary play also caches public assets as they are requested. The small application shell is cached separately; opening the page does not automatically download every optional 3D model. Offline-ready status appears only after the complete pack is present. External Google fonts may fall back to installed fonts offline, and the browser can evict cached files under storage pressure.
+
+Neon Auth, Google OAuth, API requests, authenticated headers and writes bypass the service worker completely. Account saves remain local and pending while offline, retaining the last account's display identity and acknowledged revision; no auth token is stored in the offline-owner record. Reconnection uses the existing revision checks, so another device's newer save produces a visible conflict instead of a silent overwrite. Cloud sync and account reward claims require a connection. Signing out clears the cached account identity.
+
+Worker versions are derived from shipped content. Updates wait until explicitly applied from the lobby/Settings, save pending progress first, and never automatically reload an active run. `vercel.json` keeps the worker and manifest fresh. The worker is registered only in production builds so Vite's development source and hot reload are never trapped in an offline cache.
+
+To test PWA behavior locally, build and run `npm run preview` (normally `http://127.0.0.1:4173/`). HTTPS on Vercel or a localhost origin is required; a plain HTTP LAN address on a phone is useful for gameplay testing but does not provide the normal secure PWA install environment. In development preview on port 5173, the install guide and artwork are visible but the production offline worker is disabled. Actual native installation, home-screen appearance and phone touch behavior remain device release checks.
+
+References: [MDN installation guidance](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/How_to/Trigger_install_prompt), [maskable-icon guidance](https://web.dev/articles/maskable-icon).
 
 ### Requirements
 
@@ -139,10 +167,15 @@ Deploy the contents of `dist/` to a static web host that serves JavaScript modul
 | `src/world.ts` | Babylon.js scene, lighting, procedural environment, signs, obstacles, pickups, and character integration |
 | `src/city-route.ts` | District scenery, landmark models, coastline, pedestrians, and ambient city details |
 | `src/character.ts` | Gameplay character wrapper and loading boundary |
-| `src/model-character.ts` | GLB loading, character setup, procedural movement, jump/roll poses, and geometry grounding |
+| `src/model-character.ts` | GLB loading, shared joint animation, jump/roll poses, and geometry grounding |
+| `src/scan-rig.mjs` | Fitted humanoid skeletons and skin weights for the supplied static character scans |
 | `src/character-preview.ts` | Isolated 3D character viewer used in the collection/store |
 | `src/core.mjs` | Save validation, economy helpers, collision rules, mission definitions, speed progression, run cadence, and coin attraction |
 | `src/routes.mjs` | District order, route lengths, progress, and environment transitions |
+| `src/pwa.ts` | Install prompt, offline-pack status, and user-controlled app updates |
+| `src/service-worker.js` | Versioned public-asset cache; Auth/API requests always bypass it |
+| `src/account-owner.mjs` | Last account display identity/revision for offline pending saves; no credentials |
+| `scripts/build-pwa.mjs` | Content-versioned worker and public offline asset list |
 | `src/progression.mjs` | Version-8 mission sets, daily hunt, rewards, migration, and safe letter lanes |
 | `src/progression-view.mjs` | Mission, daily-hunt, reward-reveal, and run-results markup |
 | `src/progression-scene.ts` | Pooled 3D letter token and personal-record billboard |
