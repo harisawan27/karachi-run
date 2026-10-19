@@ -1,0 +1,156 @@
+/* Friends-and-family release: one spacing scale, readable copy, bounded art. */
+.modal.arcade-panel{gap:0;max-height:100%;isolation:isolate}
+.arcade-panel :is(h2,h3,p,b,small,span){overflow-wrap:break-word}
+.arcade-panel :is(button,a){touch-action:manipulation}
+.arcade-panel :is(.shop-card-copy,.settings-choice>div,.account-card>div,.daily-prize>div,.set-prize>div){min-width:0}
+.arcade-panel .arcade-heading{padding-right:48px}
+.arcade-panel .arcade-heading h2{line-height:1.05}
+.arcade-panel .eyebrow{line-height:1.5}
+.arcade-panel .modal-close{width:40px;height:40px;right:10px;top:10px;line-height:1}
+.arcade-panel :is(.play-button,.shop-action,.phase3-action){min-height:44px;line-height:1.2;white-space:normal}
+.arcade-panel :is(.account-card,.account-error,.account-footnote,.account-sync){overflow-wrap:anywhere}
+/* Daily word is first in document order, followed by the regular mission set. */
+.mission-content{display:block;flex:1;min-height:0;padding:2px 3px 12px;mask-image:none}
+.mission-hq .daily-section{margin:0;padding:0;border:0}
+.mission-hq .mission-set{margin-top:20px;padding-top:18px;border-top:1px dashed #a1c9a2}
+.mission-hq .arcade-heading{padding-right:112px}
+.mission-hq .rank-medal{right:45px;top:3px;transform:none}
+.mission-stack{display:grid;gap:10px}
+.mission-card{min-height:76px;padding:12px;grid-template-columns:32px minmax(0,1fr) auto;gap:10px}
+.mission-card h3{font-size:12px;line-height:1.4;margin-bottom:7px}
+.mission-card small{font-size:10px;line-height:1.4}
+.mission-check{min-width:24px;text-align:right}
+.mission-meter{height:6px}
+.section-title{align-items:flex-start;flex-wrap:wrap;gap:6px;margin:2px 0 12px}
+.section-title h3{font-size:20px;line-height:1.1}
+.section-title>span{font-size:10px;line-height:1.6}
+.hunt-word{gap:5px;margin:0 0 14px}
+.hunt-letter{font-size:clamp(20px,6vw,30px);line-height:1;max-height:46px}
+.daily-prize{gap:12px;margin:10px 0}
+.daily-prize b,.set-prize b{font-size:12px;line-height:1.4}
+.daily-prize small,.set-prize small{font-size:11px;line-height:1.5}
+.pot-hint{display:block;text-align:center;font-size:9px;line-height:1.5;margin-top:10px}
+.pot-rewards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;font-size:10px;line-height:1.5}
+.pot-rewards>span{border:1px solid #77ad9055;border-radius:8px;padding:5px 7px;background:#084b402f}
+.hunt-reset{font-size:10px!important;line-height:1.6!important;margin-top:12px!important}
+.arcade-footer{font-size:10px;line-height:1.5;padding-top:8px;margin:0}
+/* Shop headers and balances take real space instead of floating over titles. */
+.shop-heading{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding-right:44px;margin-bottom:14px}
+.shop-heading .eyebrow{margin:0;line-height:1.5}
+.shop-heading h2{margin:5px 0 0;line-height:1.05}
+.shop-balance{position:static;align-self:flex-start;max-width:100%;font-size:12px;line-height:1.4;padding:6px 10px;gap:6px;white-space:normal}
+.shop-tabs{gap:6px;padding-bottom:13px}
+.shop-tabs button{min-height:42px;font-size:13px;line-height:1.2}
+.shop-content{flex:1;min-height:0;padding:2px 3px 10px;scroll-padding-block:8px}
+.shop-card{overflow:visible;position:relative}
+.shop-card h3{line-height:1.15}
+.shop-card-copy p{line-height:1.5}
+.character-face{object-fit:cover;object-position:center;aspect-ratio:1;height:auto;background:#123d34}
+/* The preview and all three character choices fit together on a short phone. */
+.shop-content:has(.crew-stage){display:grid;grid-template-rows:minmax(110px,1fr) auto;gap:12px;overflow:hidden;padding-bottom:5px}
+.crew-stage{height:100%;min-height:0;max-height:none;margin:0}
+.crew-stage-copy{max-width:calc(100% - 24px);display:flex;flex-direction:column;gap:3px;left:12px;bottom:11px}
+.crew-stage-copy b{font-size:24px;line-height:1.1}
+.crew-stage-copy :is(small,span){font-size:9px;line-height:1.4}
+.shop-content:has(.crew-stage)>.shop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;overflow:visible;padding:0 0 5px}
+.character-card{min-height:0;max-width:none;gap:7px;padding:10px 5px}
+.character-card .character-view{width:100%;min-height:48px}
+.character-card .character-face{width:48px;height:48px;border-radius:12px}
+.character-card h3{font-size:clamp(14px,3.8vw,18px);line-height:1.15;min-height:2.3em;display:grid;place-content:center;margin:0}
+.character-card .shop-card-copy{flex:none}
+.character-card .shop-action{font-size:11px;min-height:44px;padding:6px 3px;line-height:1.25;margin-top:auto}
+/* City labels and artwork occupy separate layers. */
+.city-screen{min-height:0;gap:10px}
+.city-screen .district-art{height:clamp(154px,27dvh,220px);min-height:140px;flex:none;padding:16px}
+.district-silhouette{top:30px;left:0;right:0;transform:none;text-align:center;font-size:clamp(70px,22vw,110px);line-height:1;opacity:.65;overflow:hidden}
+.district-art h3{font-size:clamp(26px,7.8vw,34px);line-height:1.08;margin-top:10px}
+.district-art .urdu{font-size:18px;line-height:1.5}
+.city-screen>p{font-size:12px;line-height:1.5;margin:0}
+.city-pager{margin:2px 0;gap:10px;min-height:44px}
+.city-pager .icon-button{width:44px;height:44px;flex:none}
+.city-dots{gap:0;flex-wrap:wrap}
+.city-dots button{width:24px;height:24px;min-height:24px;border:7px solid transparent;background-clip:content-box;box-shadow:none}
+.city-dots button[aria-current=true]{box-shadow:none;background-color:#ffda64}
+.arcade-settings{display:flex;flex-direction:column;min-height:0}
+.settings-pages{flex:none;margin-bottom:12px}
+.settings-pages>button,.quality-buttons>button{min-height:44px}
+.settings-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;gap:6px;padding-right:2px}
+.settings-list .settings-choice{min-height:68px;gap:12px;padding:10px 0;flex:none}
+.settings-choice b{font-size:13px;line-height:1.4}
+.settings-choice small{font-size:11px;line-height:1.5}
+.setting-toggle{min-width:60px;min-height:44px;flex:none}
+.settings-links>button{min-height:44px;padding:9px;line-height:1.35}
+.arcade-settings .play-button{flex:none;margin-top:8px}
+.account-card{gap:12px;padding:12px}.profile-stats{flex-wrap:wrap;gap:10px 18px}
+.about-screen p{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.tutorial-nav{gap:12px}.tutorial-nav :is(.play-button,.secondary){min-height:44px}
+@media(max-width:700px){
+ .modal-scrim{padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(var(--nav-safe) + 10px)}
+ .modal.arcade-panel{width:100%;max-width:460px;max-height:100%;padding:18px 14px 14px;border-radius:24px}
+ .modal.arcade-panel:has(.shop-heading){height:100%;max-height:760px;padding:18px 12px 12px}
+ .arcade-panel h2{font-size:32px;margin:7px 0 13px}
+ .shop-heading h2{font-size:30px;margin-bottom:0}
+ .arcade-panel .eyebrow{font-size:8px;line-height:1.5;letter-spacing:.09em}
+ .phase3-panel.mission-hq{height:100%;max-height:720px}
+ .modal.arcade-panel:has(.mission-hq){height:100%;max-height:760px}
+ .mission-hq .rank-medal{width:54px;height:54px}
+ .mission-card h3{font-size:12px}.mission-card .mission-check{font-size:8px}
+ .shop-grid:not(.shop-content:has(.crew-stage)>.shop-grid){grid-template-columns:minmax(0,1fr);gap:12px}
+ .energy-card,.ticket-shop-card{display:grid;grid-template-columns:54px minmax(0,1fr);align-items:center;text-align:left;padding:13px;gap:12px;border-radius:17px}
+ .energy-card .energy-art,.ticket-shop-card .energy-art{width:54px;height:54px;font-size:33px;border-radius:15px;grid-column:1;grid-row:1}
+ .energy-card .shop-card-copy,.ticket-shop-card .shop-card-copy{grid-column:2;grid-row:1}
+ .energy-card .shop-action,.ticket-shop-card .shop-action{grid-column:1/-1;grid-row:2;min-height:44px;font-size:15px}
+ .shop-card h3{font-size:21px;line-height:1.15;margin-bottom:6px}
+ .shop-card p{font-size:12px;line-height:1.5;margin-bottom:7px}
+ .shop-card small{font-size:10px;line-height:1.4}
+ .power-level-meter{justify-content:flex-start;gap:4px;margin-top:8px}
+ .shop-footnote{font-size:11px!important;line-height:1.6!important;margin:12px 2px 0!important}
+ .character-card h3{font-size:clamp(14px,3.8vw,18px);margin:0}
+ .board-showcase{display:grid;grid-template-columns:minmax(105px,.8fr) minmax(0,1.2fr);gap:10px;padding:10px;align-items:center}
+ .board-stage{height:145px;min-height:145px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5px;overflow:hidden}
+ .board-stamp{font-size:7px;line-height:1.4;white-space:normal}
+ .board-prop{transform:scale(.75);margin:5px -14px 0}
+ .board-stage>strong{font-size:28px;margin-top:10px}
+ .board-stage>small{font-size:7px;line-height:1.5;margin-top:2px}
+ .board-copy{padding:0}.board-copy h3{font-size:22px;line-height:1.1;margin:0 0 8px}.board-copy p{font-size:11px;line-height:1.5}
+ .board-offers{margin-top:12px}.board-offers .energy-art{display:grid}.board-offers .shop-card h3{font-size:21px}
+ .deal-ribbon{position:static;grid-column:1/-1;justify-self:start;transform:none;margin:0;padding:4px 7px;border-radius:7px;background:#ffe08c;color:#245240;font-size:9px;order:3}
+ .featured-offer .energy-art,.featured-offer .shop-card-copy{grid-row:2}.featured-offer .shop-action{grid-row:3}
+ .tutorial-screen .lesson-art{height:clamp(80px,16dvh,125px);min-height:75px;margin:0 0 12px}
+ .tutorial-screen p{font-size:12px;line-height:1.5;margin:6px 0}.tutorial-screen .lesson-lead{font-size:14px}.tutorial-screen h3{font-size:18px}
+ .lesson-dots{margin:10px 0 14px}
+}
+@media(max-height:620px) and (orientation:portrait){
+ .modal.arcade-panel{padding-top:14px}.shop-heading{gap:6px;margin-bottom:10px}.shop-heading h2{font-size:27px}.shop-heading .eyebrow{font-size:7px}.shop-balance{font-size:11px;padding:4px 8px}.shop-tabs{padding-bottom:10px}.shop-tabs button{min-height:38px}
+ .character-card{padding:7px 4px;gap:4px}.character-card .character-face{width:42px;height:42px}.character-card .character-view{min-height:42px}.character-card h3{font-size:14px;min-height:2.2em}.character-card .shop-action{min-height:40px;font-size:10px}
+ .crew-stage-copy small{display:none}.crew-stage-copy b{font-size:21px}.arcade-footer{font-size:9px}
+ .city-screen{gap:6px}.city-screen .district-art{height:140px;min-height:130px}.district-art h3{font-size:27px}.city-screen>p{font-size:11px}
+}
+@media(orientation:landscape) and (max-height:580px){
+ .modal.arcade-panel{max-width:760px;padding:14px 18px}.modal.arcade-panel:has(.shop-heading){height:100%}
+ .shop-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-bottom:10px}.shop-heading h2{font-size:27px}.shop-tabs{padding-bottom:9px}
+ .shop-content:has(.crew-stage){grid-template-columns:1fr 1fr;grid-template-rows:minmax(0,1fr)}
+ .shop-content:has(.crew-stage)>.shop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+ .shop-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .character-card{min-height:0;padding:8px 4px}.character-card .character-face{width:42px;height:42px}
+ .mission-content{display:block}.phase3-panel.mission-hq{height:100%!important}.modal.arcade-panel:has(.mission-hq){height:100%}
+ .arcade-settings .settings-list{display:flex}.arcade-settings .settings-choice{min-height:62px!important}
+}
+
+.rank-medal,.rank-medal b{color:#ffe38a}.rank-medal small{color:#d8edd9;font-size:7px}
+.energy-art.boost-art{color:#ffe08a;font:900 34px Barlow Condensed,sans-serif;text-shadow:0 2px #215443}
+.hunt-letter{width:100%;height:auto;min-height:0;padding:0;box-sizing:border-box}
+
+.daily-rewards{margin-top:6px;border-top:1px solid #8bbd9255}.daily-rewards summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:6px 2px;color:#e1edce;font-size:10px;font-weight:800;cursor:pointer;list-style:none}.daily-rewards summary::-webkit-details-marker{display:none}.daily-rewards summary:after{content:"⌄";font-size:20px;color:#ffde85}.daily-rewards[open] summary:after{transform:rotate(180deg)}.daily-rewards .pot-rewards{margin:0 0 10px}
+
+/* Clear the original two-column character-card grid before using the portrait strip. */
+.shop-content:has(.crew-stage) .shop-card.character-card{display:flex;flex-direction:column;align-items:stretch;grid-template-columns:none;grid-template-rows:none;min-height:0;gap:6px}
+.shop-card.character-card :is(.character-view,.shop-card-copy,.shop-action){grid-column:auto;grid-row:auto}
+.shop-card.character-card .character-view{display:flex;align-items:center;justify-content:center;gap:0;width:100%;padding:0;border:0;background:transparent;min-height:48px}
+.shop-card.character-card .shop-card-copy{flex:none;display:block;padding:0;align-self:stretch}
+.shop-card.character-card .shop-action{align-self:stretch;margin-top:auto;min-height:44px}
+@media(max-height:620px) and (orientation:portrait){.shop-card.character-card .character-view{min-height:42px}.shop-content:has(.crew-stage){grid-template-rows:minmax(88px,1fr) auto}.shop-card.character-card{gap:4px}}
+
+.shop-card.character-card .character-role,.shop-card.character-card .character-view-copy{display:none}.shop-card.character-card h3{min-height:1.4em}
+
+@media(orientation:landscape) and (max-height:580px){.city-screen{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;row-gap:6px}.city-screen .arcade-heading{grid-column:1/-1}.city-screen .district-art{grid-column:1;grid-row:2/6;height:150px;min-height:0}.city-screen>p,.city-screen .city-pager,.city-screen>.play-button{grid-column:2}.city-screen .district-art h3{font-size:26px}.shop-card p{font-size:12px}}

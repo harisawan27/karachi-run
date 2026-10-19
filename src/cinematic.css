@@ -1,0 +1,21 @@
+/* The approved portrait picture is never stretched or cropped. */
+.cinematic-intro{position:fixed;inset:0;z-index:1000;background:transparent;display:grid;place-items:center;overflow:hidden;opacity:0;pointer-events:none;isolation:isolate}
+.cinematic-intro.is-visible{opacity:1;pointer-events:auto}
+.cinematic-picture{position:relative;z-index:1;width:min(100%,56.25dvh);aspect-ratio:9 / 16;flex:none}
+.cinematic-picture video{width:100%;height:100%;object-fit:contain;display:block}
+.cinematic-ambient{position:absolute;inset:0;overflow:hidden;display:none;pointer-events:none}
+.cinematic-underlay{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover}
+.cinematic-backdrop{position:absolute;inset:0;width:100%;height:100%;display:block;transform:scale(1.13);opacity:.24;filter:blur(34px) saturate(.7) brightness(1.12)}
+.cinematic-vignette{position:absolute;inset:0;background:linear-gradient(90deg,#fff5d40a,transparent 35%,transparent 65%,#fff5d40a)}
+@media(min-aspect-ratio:3/4){
+ .cinematic-ambient{display:block}
+ .cinematic-picture{box-shadow:0 0 32px 6px #234f491a}
+}
+.cinematic-skip{position:absolute;z-index:2;right:max(16px,env(safe-area-inset-right));bottom:max(22px,env(safe-area-inset-bottom));min-height:46px;padding:0 20px;border:2px solid #f4e5bc;border-radius:24px;background:#173f3be6;color:#fff5d4;font:900 13px/1 system-ui;letter-spacing:.07em;box-shadow:0 3px 0 #092723;cursor:pointer}
+.cinematic-resume{position:absolute;z-index:2;inset:44% auto auto 50%;transform:translateX(-50%);white-space:nowrap;min-height:52px;padding:0 22px;border:3px solid #fff0b6;border-radius:18px;background:#ffd45b;color:#163c35;font:900 15px/1 system-ui;cursor:pointer}
+.cinematic-resume[hidden]{display:none}
+.cinematic-intro.is-finished{background:transparent;pointer-events:none}
+.cinematic-intro.is-finished .cinematic-picture{opacity:0;transition:opacity .16s linear}
+.cinematic-intro.is-finished .cinematic-ambient{opacity:0;transition:opacity .65s ease-out;mask-image:linear-gradient(90deg,#000 calc(50% - min(50vw,28.125dvh) - 1px),transparent calc(50% - min(50vw,28.125dvh)),transparent calc(50% + min(50vw,28.125dvh)),#000 calc(50% + min(50vw,28.125dvh) + 1px))}
+.cinematic-intro.is-finished :is(.cinematic-skip,.cinematic-resume){visibility:hidden}
+#shell.opening .cinematic-wait{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);padding:12px 22px;background:#153e36e8;border:2px solid #fff0b6;border-radius:30px;color:#fff5d4;font-weight:900;white-space:nowrap;z-index:35}

@@ -1,10 +1,10 @@
 import {readFileSync,readdirSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {RUNTIME_MODELS} from '../src/asset-manifest.mjs';
+import {RUNTIME_MODELS,RUNTIME_MEDIA} from '../src/asset-manifest.mjs';
 
 export function writeServiceWorker(directory='dist'){
- const shell=['/','/licenses/sketchbook.txt','/manifest.webmanifest','/favicon.ico',...readdirSync(directory+'/assets').filter(file=>/\.(js|css)$/.test(file)).map(file=>'/assets/'+file),...readdirSync(directory+'/branding').map(file=>'/branding/'+file)];
- const game=[...RUNTIME_MODELS.map(file=>'/'+file),...readdirSync(directory+'/models').filter(file=>/\.(glb|bin)$/.test(file)).map(file=>'/models/'+file),...readdirSync(directory+'/characters').filter(file=>file.endsWith('.webp')).map(file=>'/characters/'+file)];
+ const shell=['/','/licenses/sketchbook.txt','/licenses/pakistani-truck.txt','/manifest.webmanifest','/favicon.ico',...readdirSync(directory+'/assets').filter(file=>/\.(js|css)$/.test(file)).map(file=>'/assets/'+file),...readdirSync(directory+'/branding').map(file=>'/branding/'+file)];
+ const game=[...RUNTIME_MEDIA.map(file=>'/'+file),...RUNTIME_MODELS.map(file=>'/'+file),...readdirSync(directory+'/models').filter(file=>/\.(glb|bin)$/.test(file)).map(file=>'/models/'+file),...readdirSync(directory+'/characters').filter(file=>file.endsWith('.webp')).map(file=>'/characters/'+file)];
  const template=readFileSync('src/service-worker.js','utf8');
  const hash=createHash('sha256');hash.update(template);
  for(const path of [...shell,...game].sort()){hash.update(path);hash.update(readFileSync(directory+(path==='/'?'/index.html':path)));}

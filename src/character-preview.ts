@@ -31,6 +31,7 @@ export class CharacterPreview {
     this.scene.clearColor = new Color4(.035, .18, .16, 1);
     this.scene.ambientColor = new Color3(.18, .2, .17);
     this.camera = new ArcRotateCamera('locker camera', this.cameraHome.alpha, this.cameraHome.beta, this.cameraHome.radius, new Vector3(0, 1.36, 0), this.scene);
+    this.camera.minZ=.03;
     this.camera.lowerRadiusLimit = 3.5;
     this.camera.upperRadiusLimit = 5.8;
     this.camera.lowerBetaLimit = .95;
@@ -91,7 +92,7 @@ export class CharacterPreview {
       if (generation !== this.generation || this.scene.isDisposed) { model.dispose(); return; }
       model.root.rotation.y = Math.PI;
       model.root.position.set(0, 0, 0);
-      model.animate(0, false, 0, false, 14, 1 / 60, 0);
+      for(let i=0;i<30;i++)model.animate(0, false, 0, false, 14, 1 / 30, 0);
     } else {
       const imported = await SceneLoader.ImportMeshAsync(null, '/models/', source, this.scene);
       if (generation !== this.generation || this.scene.isDisposed) {
@@ -125,28 +126,24 @@ export class CharacterPreview {
       root.rotation.y = Math.PI;
       for (const mesh of meshes) { mesh.alwaysSelectAsActiveMesh = true; mesh.isPickable = false; }
     }
+    await this.scene.whenReadyAsync();
+    if(generation!==this.generation||this.scene.isDisposed)return;
     this.resetCamera();
     this.scene.render();
   }
 
   captureFacePortrait() {
     if (!this.current || this.scene.isDisposed) return '';
-    const target = this.camera.target.clone();
-    const radius = this.camera.radius;
-    this.camera.setTarget(new Vector3(0, 2.48, 0));
-    this.camera.radius = .82;
+    const target=this.camera.target.clone(),alpha=this.camera.alpha,beta=this.camera.beta,radius=this.camera.radius,lower=this.camera.lowerRadiusLimit,upper=this.camera.upperRadiusLimit;
+    this.camera.lowerRadiusLimit=null;this.camera.upperRadiusLimit=null;
+    this.camera.alpha=-Math.PI/2;this.camera.beta=Math.PI/2;
+    this.camera.setTarget(new Vector3(0,2.57,0));this.camera.radius=.82;
     this.scene.render();
-    const portrait = document.createElement('canvas');
-    portrait.width = portrait.height = 256;
-    const context = portrait.getContext('2d');
-    if (context) {
-      const size = Math.min(this.canvas.width, this.canvas.height);
-      context.drawImage(this.canvas, (this.canvas.width - size) / 2, 0, size, size, 0, 0, 256, 256);
-    }
-    const result = portrait.toDataURL('image/webp', .9);
-    this.camera.setTarget(target);
-    this.camera.radius = radius;
-    this.scene.render();
+    const portrait=document.createElement('canvas');portrait.width=portrait.height=256;
+    const context=portrait.getContext('2d');
+    if(context){const size=Math.min(this.canvas.width,this.canvas.height);context.drawImage(this.canvas,(this.canvas.width-size)/2,(this.canvas.height-size)/2,size,size,0,0,256,256);}
+    const result=portrait.toDataURL('image/webp',.94);
+    this.camera.lowerRadiusLimit=lower;this.camera.upperRadiusLimit=upper;this.camera.alpha=alpha;this.camera.beta=beta;this.camera.radius=radius;this.camera.setTarget(target);this.scene.render();
     return result;
   }
 

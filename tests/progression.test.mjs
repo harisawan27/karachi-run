@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {parseSave,mergePlayerSaves,persistSave,loadSave} from '../src/core.mjs';
-import {WORD,pakistanDay,resetIn,missionSet,baseMultiplier,advanceProgression,missionReady,collectLetter,nextLetter,dailyReady,claimLocalReward,withCurrentDay,dailyLetterLane,potReward} from '../src/progression.mjs';
+import {WORD,pakistanDay,resetIn,missionSet,baseMultiplier,advanceProgression,missionReady,collectLetter,nextLetter,dailyReady,claimLocalReward,withCurrentDay,dailyLetterLane,potReward,progressionHasNotice,markMissionsSeen} from '../src/progression.mjs';
 const now=Date.parse('2026-10-18T12:00:00Z');const fresh=()=>withCurrentDay(parseSave(null),now);
 test('legacy challenges, wallet and unlocks migrate into mission sets without a reset',()=>{
  const s=parseSave(JSON.stringify({version:7,coins:450,best:1200,missionIndex:8,missionProgress:3,unlockedCharacters:['imran.glb'],wapsiTickets:4,powerLevels:{chai:3}}));
@@ -38,4 +38,14 @@ test('daily letters choose reachable street lanes and refuse all-lane traffic',(
 test('progression persists the complete snapshot and malformed counters are bounded',()=>{
  let s=fresh();s=collectLetter(s,3,now);s=advanceProgression(s,'coins',13);const db=new Map(),storage={getItem:k=>db.get(k),setItem:(k,v)=>db.set(k,v)};persistSave(storage,s);assert.deepEqual(loadSave(storage),s);
  const bad=parseSave(JSON.stringify({progression:{set:-9,counts:[-1,'999',Infinity],daily:{day:'<script>',mask:-1}}}));assert.equal(bad.progression.set,0);assert.deepEqual(bad.progression.counts,[0,0,0]);assert.equal(bad.progression.daily.mask,0);assert.ok(potReward('2026-10-18','guest').coins>0);
+});
+
+test('an earned daily prize survives midnight, reload and delayed collection without resetting the new hunt',()=>{
+ const after=Date.parse('2026-10-19T12:00:00Z');let s=fresh();for(let i=0;i<7;i++)s=collectLetter(s,i,now);s=withCurrentDay(s,after);assert.deepEqual(s.progression.pendingDaily,['2026-10-18']);s=parseSave(JSON.stringify(s));s=collectLetter(s,2,after);assert.equal(dailyReady(s,after),true);const result=claimLocalReward(s,'daily',after);assert.equal(result.key,'daily:2026-10-18');assert.equal(result.save.progression.daily.day,'2026-10-19');assert.equal(result.save.progression.daily.mask,4);assert.equal(result.save.progression.daily.claimed,false);assert.deepEqual(result.save.progression.pendingDaily,[]);assert.equal(claimLocalReward(parseSave(JSON.stringify(result.save)),'daily',after),null);
+});
+test('merging an old device cannot resurrect a collected archived prize',()=>{
+ const later=Date.parse('2026-10-19T12:00:00Z');let s=fresh();for(let i=0;i<7;i++)s=collectLetter(s,i,now);s=withCurrentDay(s,later);const stale=structuredClone(s),paid=claimLocalReward(s,'daily',later).save,merged=mergePlayerSaves(stale,paid);assert.deepEqual(merged.progression.pendingDaily,[]);assert.ok(merged.progression.claimedDaily.includes('2026-10-18'));assert.equal(dailyReady(merged,later),false);
+});
+test('mission dots track real unseen completions and stay on for an unclaimed set',()=>{
+ let s=fresh();assert.equal(progressionHasNotice(s),false);s=advanceProgression(s,'jump',4);assert.equal(progressionHasNotice(s),true);s=markMissionsSeen(s);assert.equal(progressionHasNotice(s),false);s=advanceProgression(s,'coins',80);s=advanceProgression(s,'distance',700);s=markMissionsSeen(s);assert.equal(progressionHasNotice(s),true);const paid=claimLocalReward(s,'mission',now).save;assert.equal(progressionHasNotice(paid),false);
 });

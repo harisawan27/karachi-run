@@ -1,0 +1,1 @@
+export function skylineBannerPose(eye,target,portrait){const dx=target.x-eye.x,dz=target.z-eye.z,length=Math.hypot(dx,dz)||1,distance=110;return {x:eye.x+dx/length*distance,y:Math.max(27,eye.y+26),z:eye.z+dz/length*distance,width:portrait?50:70,height:portrait?11.4:16};}

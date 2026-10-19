@@ -1,3 +1,8 @@
+import {Viewport} from '@babylonjs/core/Maths/math.viewport';
+import handoff from './cinematic-handoff.mjs';
+import {cinematicViewport} from './cinematic-framing.mjs';
+import {OpeningScene} from './opening-scene';
+import {openingActors,openingCamera,nextThrowDelay,OPENING_AFTER,ESCAPE_AFTER} from './shutter-opening.mjs';
 import {airCameraFov,flightCameraPose} from './air-movement.mjs';
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
@@ -12,7 +17,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
-import { flightCameraTarget, groundCameraRise, jumpCameraPullback, frameRunnerTargetY, openingYaw, groundRunFov } from './runner-motion.mjs';
+import { flightCameraTarget, groundCameraRise, jumpCameraPullback, frameRunnerTargetY, groundRunFov } from './runner-motion.mjs';
 import { ModelCharacter as Character } from './model-character';
 import { LocalAssets } from './local-assets';
 import { mazda } from './mazda';
@@ -33,8 +38,21 @@ export class KarachiWorld {
   engine: Engine; scene: Scene; camera: FreeCamera; materials = new Map<string,StandardMaterial>(); signMat: StandardMaterial;
   chunks: TransformNode[] = []; runner!: Character; pursuer!: Character; cruiserBoard!: TransformNode; landmark!: TransformNode; skyline:TransformNode|null=null; city!:CityRoute; assets!:LocalAssets; ready!:Promise<void>; travel=0;time=0; mode='menu'; speed=0; low=false; chaserBlocked=false; rollRemaining=0;
   groundHeight=0;airborne=false;verticalVelocity=0;jumpLaunchSpeed=0;flightStage='off';flightActive=false;introProgress=0;chaseVisible=true;boardActive=false;private chaiJets:TransformNode|null=null;private chaiJetFlames:Mesh[]=[];private cameraElevation=0;private flightBlend=0;private shakeIntensity=0;private shakeDuration=0;
+  openingSet!:OpeningScene;lobbyClock=0;openingElapsed=0;openingDelay=0;openingClockStart=0;
+  private cinematicProgress=1;private cinematicReleased=false;
+  resetCinematicCamera(){this.cinematicProgress=1;this.cinematicReleased=false;this.camera.viewport=new Viewport(0,0,1,1);const canvas=this.engine.getRenderingCanvas();if(canvas)canvas.style.clipPath='';}
+  prepareCinematicHandoff(){
+    this.mode='running';this.time=handoff.sceneTime;this.update(0,0,true,0,false);
+    this.runner.restoreCinematicPose(handoff.runner);this.pursuer.restoreCinematicPose(handoff.warden);this.pursuer.root.setEnabled(true);this.pursuer.shadow.setEnabled(true);
+    this.cameraElevation=0;this.flightBlend=0;this.cinematicProgress=0;this.cinematicReleased=false;
+    this.camera.position.copyFromFloats(...handoff.camera.eye as [number,number,number]);this.camera.setTarget(Vector3.FromArray(handoff.camera.target));this.camera.fov=handoff.camera.fov;this.frameCinematic(0);
+  }
+  releaseCinematicHandoff(){this.cinematicReleased=true;}
+  private frameCinematic(progress:number){const frame=cinematicViewport(innerWidth,innerHeight,progress);this.camera.viewport=new Viewport(frame.x,frame.y,frame.width,frame.height);const canvas=this.engine.getRenderingCanvas();if(canvas)canvas.style.clipPath=progress>=1?'':`inset(${frame.y*100}% ${frame.x*100}%)`;return frame.blend;}
+  beginOpening(){this.chaserBlocked=false;this.openingClockStart=this.lobbyClock;this.openingDelay=nextThrowDelay(this.lobbyClock);this.openingElapsed=0;return this.openingDelay+OPENING_AFTER;}
   constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
+    this.engine.renderEvenInBackground=false;
     this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
     this.scene=new Scene(this.engine); this.scene.clearColor=new Color4(.66,.81,.82,1);
     this.scene.fogMode=Scene.FOGMODE_LINEAR; this.scene.fogColor=new Color3(.71,.82,.79);this.scene.fogStart=65;this.scene.fogEnd=190;
@@ -54,7 +72,7 @@ export class KarachiWorld {
     for(let i=0;i<12;i++){this.status(`BUILDING STREET ${String(i+1).padStart(2,'0')} / 12…`);this.chunks.push(this.makeChunk(i));await this.nextFrame();}
     this.status('SCULPTING MAZAR-E-QUAID…');this.landmark=this.makeMazar();await this.nextFrame();
     this.status('LOADING YOUR RUNNERS…');this.runner=new Character(this,false,runnerSource);this.runner.root.position.set(0,0,0);this.pursuer=new Character(this,true);this.pursuer.root.position.set(0,0,-6);this.cruiserBoard=this.makeCruiserBoard();
-    this.assets=new LocalAssets(this);this.city=new CityRoute(this);await this.city.initialize();this.city.update(0,0);
+    this.openingSet=new OpeningScene(this);this.assets=new LocalAssets(this);this.city=new CityRoute(this);await this.city.initialize();this.city.update(0,0);
   }
   mat(name:string,hex?:string) {
     const key=hex || name; const found=this.materials.get(key);if(found)return found;
@@ -368,17 +386,27 @@ export class KarachiWorld {
   quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
     if(this.chaiJets?.isEnabled()){const pulse=(this.flightStage==='landing'?.48:1)*(.88+Math.sin(this.time*25)*.12);for(const flame of this.chaiJetFlames)flame.scaling.y=pulse;this.chaiJets.rotation.y=Math.sin(this.time*3)*.035;}
-    this.time+=dt;this.travel+=distanceDelta;
+    this.time+=dt;this.travel+=distanceDelta;if(this.mode==='menu'&&!document.hidden)this.lobbyClock+=dt;else if(this.mode==='intro')this.lobbyClock=this.openingClockStart+this.openingElapsed;
     for(const c of this.chunks){c.position.z-=distanceDelta;if(c.position.z< -48)c.position.z+=216;}
-    this.city.update(this.travel,this.time);this.assets.update(this.travel);
-    const running=this.mode==='running'||(this.mode==='intro'&&this.introProgress>.65),caught=this.mode==='crashed'||this.mode==='over';
+    const inLobby=this.mode==='menu'||this.mode==='intro';
+    this.city.update(this.travel,this.time);if(inLobby)for(const c of this.chunks)if(c.position.z>-18&&c.position.z<20)c.setEnabled(false);this.assets.update(this.travel);
+    const action=this.mode==='intro'?this.openingElapsed-this.openingDelay:-Infinity,actors=openingActors(action);
+    if(inLobby){
+      this.runner.root.position.set(actors.hero.x,0,actors.hero.z);this.runner.root.rotation.y=actors.hero.yaw;
+      this.pursuer.root.position.set(actors.warden.x,0,actors.warden.z);this.pursuer.root.rotation.y=actors.warden.yaw;
+    }
+    this.pursuer.root.setEnabled(this.mode!=='menu'&&(this.mode!=='intro'||actors.wardenVisible));
+    this.pursuer.shadow.setEnabled(this.pursuer.root.isEnabled());
+    const running=this.mode==='running'||(this.mode==='intro'&&action>=ESCAPE_AFTER),caught=this.mode==='crashed'||this.mode==='over';
     this.runner.animate(this.time,running,playerY,sliding,this.speed,dt,this.rollRemaining,this.boardActive);
-    this.pursuer.animate(this.time+.15,(running||this.mode==='intro')&&!this.chaserBlocked,0,false,this.speed,dt);
-    this.runner.root.rotation.y+=(playing&&!caught?0:Math.PI-this.runner.root.rotation.y)*(playing&&!caught?0:Math.min(1,dt*6));
-    if(this.mode==='intro')this.runner.root.rotation.y=openingYaw(this.introProgress);
-    else if(running)this.runner.root.rotation.y*=Math.exp(-dt*18);
-    this.pursuer.root.rotation.y+=((caught||!playing?Math.PI:0)-this.pursuer.root.rotation.y)*(1-Math.exp(-dt*12));
-    if(!playing)this.pursuer.root.position.z+=(-2-this.pursuer.root.position.z)*Math.min(1,dt*4);
+    this.pursuer.animate(this.time+.15,running&&!this.chaserBlocked,0,false,this.speed,dt);
+    if(!inLobby){
+      this.runner.root.rotation.y+=(playing&&!caught?0:Math.PI-this.runner.root.rotation.y)*(playing&&!caught?0:Math.min(1,dt*6));
+      if(running)this.runner.root.rotation.y*=Math.exp(-dt*18);
+      this.pursuer.root.rotation.y+=((caught||!playing?Math.PI:0)-this.pursuer.root.rotation.y)*(1-Math.exp(-dt*12));
+      if(!playing)this.pursuer.root.position.z+=(-2-this.pursuer.root.position.z)*Math.min(1,dt*4);
+    }
+    this.openingSet.update();
     if(this.boardActive){
       const hoverBob=Math.sin(this.time*8.5)*.035;
       this.cruiserBoard.setEnabled(!this.flightActive);
@@ -398,22 +426,32 @@ export class KarachiWorld {
     this.cameraElevation+=(this.groundHeight+jumpRise-this.cameraElevation)*(1-Math.exp(-dt*(jumpRise>0?14:7)));
     const jumpBack=!this.flightActive&&this.flightBlend<.1?jumpCameraPullback(jumpHeight):0;
     const portrait=innerWidth<innerHeight;
-    if(!playing&&portrait&&innerWidth<=700)this.pursuer.root.position.set(-1.3,0,2.9);
+
     const flightTarget=playing?flightCameraTarget(this.flightActive,this.flightBlend,playerY-this.groundHeight):0;this.flightBlend+=(flightTarget-this.flightBlend)*(1-Math.exp(-dt*2.7));
-    const desiredGround=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,(portrait?-12.4:-10.8)-jumpBack):portrait&&innerWidth<=700?new Vector3(0,3.3,innerHeight<=700?-9.3:-8):new Vector3(-4.1,7,-14);
-    const targetGround=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):portrait&&innerWidth<=700?new Vector3(0,innerHeight<=700?1.05:1.65,0):new Vector3(1,1.8,27);
+    const desiredRun=playing?new Vector3(this.runner.root.position.x*(portrait?.035:.1)+sx,portrait?5.15+this.cameraElevation*.7+sy:5.4+this.cameraElevation*.7+sy,(portrait?-12.4:-10.8)-jumpBack):portrait&&innerWidth<=700?new Vector3(0,3.3,innerHeight<=700?-9.3:-8):new Vector3(-4.1,7,-14);
+    const targetRun=playing?new Vector3(this.runner.root.position.x*(portrait?.025:.08)+sx*.5,2.0+this.cameraElevation*.7+sy*.5,portrait?16:18):portrait&&innerWidth<=700?new Vector3(0,innerHeight<=700?1.05:1.65,0):new Vector3(1,1.8,27);
+    const escape=this.mode==='menu'?0:this.mode==='intro'?actors.escape:1;
+    const shot=openingCamera(portrait,action),lobbyEye=Vector3.FromArray(shot.eye),lobbyTarget=Vector3.FromArray(shot.target);
+    const desiredGround=Vector3.Lerp(lobbyEye,desiredRun,escape),targetGround=Vector3.Lerp(lobbyTarget,targetRun,escape);
     const air=flightCameraPose(playerY,portrait);
     const desiredAir=new Vector3(this.runner.root.position.x*(portrait?.035:.09)+sx,air.eyeY+sy,air.eyeZ);
     const targetAir=new Vector3(this.runner.root.position.x*(portrait?.025:.07)+sx*.5,air.targetY+sy*.3,air.targetZ);
     const desired=Vector3.Lerp(desiredGround,desiredAir,this.flightBlend),target=Vector3.Lerp(targetGround,targetAir,this.flightBlend);
-    const factor=1-Math.exp(-dt*(this.flightActive||this.flightBlend>.1?8:jumpRise>0?9:5));this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
-    const groundFov=!playing&&portrait&&innerWidth<=700?.74:groundRunFov(innerWidth,innerHeight,running?this.speed:14),airFov=airCameraFov(innerWidth,innerHeight);this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
-    if(playing)target.y=frameRunnerTargetY(this.camera.position.y,this.camera.position.z,target.y,target.z,playerY,this.camera.fov);
+    const factor=this.mode==='intro'?1:1-Math.exp(-dt*(this.flightActive||this.flightBlend>.1?8:jumpRise>0?9:5));this.camera.position=Vector3.Lerp(this.camera.position,desired,factor);
+    const groundFov=(portrait?1.22:.78)*(1-escape)+groundRunFov(innerWidth,innerHeight,running?this.speed:14)*escape,airFov=airCameraFov(innerWidth,innerHeight);this.camera.fov=groundFov+(airFov-groundFov)*this.flightBlend;
+    if(playing&&this.mode!=='intro')target.y=frameRunnerTargetY(this.camera.position.y,this.camera.position.z,target.y,target.z,playerY,this.camera.fov);
     this.camera.setTarget(target);
     if(playing){
       const lateralDist=this.runner.root.position.x;
       this.camera.rotation.z+=(-lateralDist*.012-this.camera.rotation.z)*(1-Math.exp(-dt*10));
     }
-    if(!playing)this.pursuer.root.position.x+=(-1.15-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
+    if(this.cinematicProgress<1){
+      if(this.cinematicReleased)this.cinematicProgress=Math.min(1,this.cinematicProgress+dt/.65);
+      const blend=this.frameCinematic(this.cinematicProgress);
+      this.camera.position=Vector3.Lerp(Vector3.FromArray(handoff.camera.eye),desired,blend);
+      this.camera.setTarget(Vector3.Lerp(Vector3.FromArray(handoff.camera.target),target,blend));
+      this.camera.fov=handoff.camera.fov+(this.camera.fov-handoff.camera.fov)*blend;
+    }
+    if(!playing&&!inLobby)this.pursuer.root.position.x+=(-1.15-this.pursuer.root.position.x)*(1-Math.exp(-dt*3));
   }
 }

@@ -6,7 +6,7 @@ import {streetRow} from '../src/track.mjs';
 import {RunReport} from '../src/run-report.mjs';
 
 test('every runtime character and street model has a valid source GLB',()=>{
- assert.equal(new Set(RUNTIME_MODELS).size,8);
+ assert.equal(new Set(RUNTIME_MODELS).size,9);
  for(const file of RUNTIME_MODELS){const b=readFileSync(`public/${file}`);assert.equal(b.readUInt32LE(0),0x46546c67);assert.equal(b.readUInt32LE(8),b.length);}
 });
 test('street phrases repeat from a seed and their safe route never requires two lane changes at once',()=>{

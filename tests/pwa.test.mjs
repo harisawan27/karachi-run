@@ -7,14 +7,14 @@ import {createInstallController,installPlatform} from '../src/pwa-install.mjs';
 import {readAccountOwner,rememberAccountOwner} from '../src/account-owner.mjs';
 
 const origin='https://karachi-run.test';
-const config={version:'test-v1',shell:['/','/assets/main-12345678.js','/branding/icon-192.png'],game:['/boy.glb','/bus.glb'],gameBytes:42};
+const config={version:'test-v1',shell:['/','/assets/main-12345678.js','/branding/icon-192.png'],game:['/boy.glb','/bus.glb','/cinematics/haris-intro.mp4'],gameBytes:42};
 function worker(){
  const handlers={},stores=new Map(),requests=[],messages=[];let online=true,failPath='',skipped=0,claimed=0,clientCount=1;
  const key=input=>new URL(typeof input==='string'?input:input.url,origin).href;
  const caches={async open(name){if(!stores.has(name))stores.set(name,new Map());const map=stores.get(name);return {async match(input){return map.get(key(input))?.clone();},async put(input,response){map.set(key(input),response.clone());}};},async keys(){return [...stores.keys()];},async delete(name){return stores.delete(name);},async match(input){for(const map of stores.values())if(map.has(key(input)))return map.get(key(input)).clone();}};
  class WorkerRequest extends Request{constructor(input,init){super(typeof input==='string'?new URL(input,origin):input,init);}}
  const self={location:{origin},addEventListener:(type,handler)=>handlers[type]=handler,clients:{matchAll:async()=>Array.from({length:clientCount},()=>({postMessage:message=>messages.push(message)})),claim:async()=>claimed++},skipWaiting:async()=>skipped++};
- vm.runInNewContext(fs.readFileSync('src/service-worker.js','utf8').replace('__PWA_CONFIG__',JSON.stringify(config)),{self,caches,Request:WorkerRequest,URL,console,fetch:async request=>{const path=new URL(request.url).pathname;requests.push(path);if(!online||path===failPath)throw new Error('offline');return new Response(path==='/'?'<html>game shell</html>':'asset '+path,{headers:{'content-type':path==='/'?'text/html':'application/octet-stream'}});}});
+ vm.runInNewContext(fs.readFileSync('src/service-worker.js','utf8').replace('__PWA_CONFIG__',JSON.stringify(config)),{self,caches,Request:WorkerRequest,Response,Headers,URL,console,fetch:async request=>{const path=new URL(request.url).pathname;requests.push(path);if(!online||path===failPath)throw new Error('offline');return new Response(path==='/'?'<html>game shell</html>':'asset '+path,{headers:{'content-type':path==='/'?'text/html':'application/octet-stream'}});}});
  async function dispatch(type,extra={}){const waits=[];let response;handlers[type]({...extra,waitUntil:p=>waits.push(p),respondWith:p=>response=p});const result=response?await response:undefined;await Promise.all(waits);return result;}
  return {dispatch,requests,messages,caches,stores,get skipped(){return skipped;},get claimed(){return claimed;},clients(count){clientCount=count;},offline(){online=false;},online(){online=true;failPath='';},fail(path){failPath=path;},request:(path,init)=>new WorkerRequest(path,init)};
 }
@@ -80,4 +80,15 @@ test('manifest and exported artwork cover install icons, Apple touch and favicon
 
 test('updates cannot activate across another open game window',async()=>{
  const w=worker();w.clients(2);await w.dispatch('message',{data:{type:'ACTIVATE_UPDATE'},source:{postMessage:message=>w.messages.push(message)}});assert.equal(w.skipped,0);assert.ok(w.messages.some(message=>message.type==='UPDATE_BLOCKED'));
+});
+
+test('offline cinematic supports bounded, suffix and open byte ranges without caching fragments',async()=>{
+ const w=worker(),path='/cinematics/haris-intro.mp4',full='asset '+path;
+ const first=await w.dispatch('fetch',{request:w.request(path,{headers:{range:'bytes=0-4'}})});
+ assert.equal(first.status,206);assert.equal(await first.text(),full.slice(0,5));assert.equal(first.headers.get('content-range'),'bytes 0-4/'+full.length);
+ assert.equal((await (await w.caches.open('karachi-run-game-test-v1')).match(path)).status,200);
+ w.offline();
+ for(const [range,expected]of [['bytes=6-',full.slice(6)],['bytes=-4',full.slice(-4)]]){const response=await w.dispatch('fetch',{request:w.request(path,{headers:{range}})});assert.equal(response.status,206);assert.equal(await response.text(),expected);}
+ const invalid=await w.dispatch('fetch',{request:w.request(path,{headers:{range:'bytes=9999-'}})});assert.equal(invalid.status,416);
+ assert.equal(await (await w.dispatch('fetch',{request:w.request(path)})).text(),full);assert.equal(w.requests.length,1);
 });

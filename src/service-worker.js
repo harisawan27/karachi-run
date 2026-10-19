@@ -10,7 +10,7 @@ function pathFor(request){
  if(request.method!=='GET'||url.origin!==self.location.origin||url.search||request.headers.has('authorization'))return null;
  return url.pathname;
 }
-function valid(response){return response.ok&&!response.redirected&&response.type!=='opaque';}
+function valid(response){return response.status===200&&response.ok&&!response.redirected&&response.type!=='opaque';}
 async function fetchAndCache(path,cache){
  const response=await fetch(new Request(path,{cache:'no-cache',credentials:'same-origin'}));
  if(!valid(response)||path!=='/'&&(response.headers.get('content-type')??'').includes('text/html'))throw new Error('Asset unavailable');
@@ -55,6 +55,17 @@ self.addEventListener('message',event=>{
   event.waitUntil(download);
  }
 });
+// Mobile video elements seek with Range requests, including during offline play.
+async function rangedVideo(response,range){
+ if(!range)return response;
+ const bytes=await response.arrayBuffer(),length=bytes.byteLength,match=/^bytes=(\d*)-(\d*)$/.exec(range);
+ const headers=new Headers(response.headers);headers.set('Accept-Ranges','bytes');
+ if(!match||(!match[1]&&!match[2])){headers.set('Content-Range','bytes */'+length);return new Response(null,{status:416,headers});}
+ let start=match[1]?Number(match[1]):Math.max(0,length-Number(match[2]));let end=match[1]?(match[2]?Math.min(length-1,Number(match[2])):length-1):length-1;
+ if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start>=length||start>end){headers.set('Content-Range','bytes */'+length);return new Response(null,{status:416,headers});}
+ headers.set('Content-Range',`bytes ${start}-${end}/${length}`);headers.set('Content-Length',String(end-start+1));
+ return new Response(bytes.slice(start,end+1),{status:206,headers});
+}
 self.addEventListener('fetch',event=>{
  const request=event.request,url=new URL(request.url);
  // OAuth, Neon, API calls, writes, private headers and unrelated navigation
@@ -68,7 +79,12 @@ self.addEventListener('fetch',event=>{
  if(!shell.has(path)&&!game.has(path)&&!oldHashedAsset)return;
  event.respondWith((async()=>{
   const cache=await caches.open(game.has(path)?GAME_CACHE:SHELL_CACHE);
-  const cached=await cache.match(path)||oldHashedAsset&&await caches.match(path);if(cached)return cached;
+  const cached=await cache.match(path)||oldHashedAsset&&await caches.match(path);
+  if(game.has(path)&&path.endsWith('.mp4')){
+   const full=cached||await fetchAndCache(path,cache);
+   return rangedVideo(full,request.headers.get('range'));
+  }
+  if(cached)return cached;
   const response=await fetch(request);
   if(valid(response)&&!(response.headers.get('content-type')??'').includes('text/html')&&(shell.has(path)||game.has(path)))event.waitUntil(cache.put(path,response.clone()).catch(()=>{}));
   return response;

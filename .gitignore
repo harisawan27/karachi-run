@@ -8,3 +8,6 @@ dist/
 # Source archives and reference capture are not runtime assets
 public/*.zip
 public/*.mp4
+
+# Original high-poly import; the optimized runtime truck is tracked.
+/public/pakistani_truck_models.glb

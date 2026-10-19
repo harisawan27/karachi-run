@@ -1,5 +1,6 @@
 import { CHARACTER_FILES } from './asset-manifest.mjs';
 import { runCadence } from './core.mjs';
+import {openingJoint,escapeBlend} from './shutter-opening.mjs';
 import { jointPose, sprintLift, ROLL_DURATION } from './runner-motion.mjs';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -11,6 +12,7 @@ import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 import { createScanRig } from './scan-rig.mjs';
 import sprintClip from './haris-sprint.mjs';
 import jumpClip from './haris-jump.mjs';
+import lobbyClip from './haris-lobby-throw.mjs';
 import {jumpClipProgress} from './air-movement.mjs';
 import '@babylonjs/loaders/glTF';
 import type { KarachiWorld } from './world';
@@ -23,20 +25,20 @@ export class ModelCharacter {
   useSprintClip=true;
   private sprintTracks=new Map<string,Quaternion[]>();private jumpTracks=new Map<string,Quaternion[]>();private clipBlend=0;
   private clipTarget=new Quaternion();
+  private lobbyTracks=new Map<string,Quaternion[]>();
   private squashFactor=1;private squashTarget=1;private squashDuration=0;
   squash(factor=.78,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
   stretch(factor=1.15,duration=.14){this.squashTarget=factor;this.squashDuration=duration;}
   land(impactSpeed=14){this.landing=Math.max(.3,Math.min(1,impactSpeed/22));this.phase=Math.round(this.phase/Math.PI)*Math.PI;this.squash(.98,.08);}
-  dispose(){for(const skeleton of new Set(this.surfaces.map(surface=>surface.mesh.skeleton)))skeleton?.dispose();this.root.dispose(false,true);this.shadow.dispose();this.snack?.dispose(false,true);}
+  dispose(){for(const skeleton of new Set(this.surfaces.map(surface=>surface.mesh.skeleton)))skeleton?.dispose();this.root.dispose(false,true);this.shadow.dispose();}
   private armMask:Uint8Array|null=null;
   private nativeJoints:{node:TransformNode;rest:Quaternion;name:string;side:number;armsDown:boolean}[]=[];
-  private snack:TransformNode|null=null;
   constructor(private w:KarachiWorld,private police:boolean,runnerSource?:string){
     this.root=new TransformNode(police?'warden model':'runner model',w.scene);this.body=new TransformNode('animated model',w.scene);this.body.parent=this.root;this.body.setPivotPoint(new Vector3(0,1.25,0));
     this.shadow=MeshBuilder.CreateDisc('model ground shadow',{radius:.58,tessellation:32},w.scene);this.shadow.rotation.x=Math.PI/2;this.shadow.position.y=.019;this.shadow.scaling.y=.7;this.shadow.material=w.mat('shadow','#3d5050');this.shadow.visibility=.36;
     this.source=runnerSource??CHARACTER_FILES[police?1:0];this.ready=this.load();
-    if(!police){this.snack=new TransformNode('gola ganda',w.scene);const ice=MeshBuilder.CreateSphere('rose ice',{diameter:.18,segments:8},w.scene);ice.material=w.mat('rose ice','#e84d78');ice.parent=this.snack;const stick=MeshBuilder.CreateCylinder('ice stick',{height:.22,diameter:.025,tessellation:6},w.scene);stick.position.y=-.13;stick.material=w.mat('ice stick','#e3c592');stick.parent=this.snack;this.snack.setEnabled(false);}
   }
+
   private async load(){
     if(this.source==='imran.glb'){const response=await fetch('/models/imran-arm-weights.bin');if(!response.ok)throw new Error('Missing character arm weights');this.armMask=new Uint8Array(await response.arrayBuffer());}
     const result=await SceneLoader.ImportMeshAsync(null,this.source==='imran.glb'||this.source==='asim.glb'?'/models/':'/',this.source,this.w.scene);
@@ -53,6 +55,7 @@ export class ModelCharacter {
     }else for(const mesh of meshes)this.rig(mesh);
     for(const mesh of meshes){mesh.alwaysSelectAsActiveMesh=true;mesh.isPickable=false;}
     if(this.source==='pakistani_boy.glb'){
+      for(const [name,frames]of Object.entries(lobbyClip.tracks))this.lobbyTracks.set(name,frames.map(q=>Quaternion.FromArray(q)));
       for(const [name,frames]of Object.entries(sprintClip.tracks))this.sprintTracks.set(name,frames.map(q=>Quaternion.FromArray(q)));
       for(const [name,frames]of Object.entries(jumpClip.tracks))this.jumpTracks.set(name,frames.map(q=>Quaternion.FromArray(q)));
     }
@@ -72,6 +75,17 @@ export class ModelCharacter {
     this.surfaces.push({mesh,points,indices:sampleIndices,weights:sampleWeights,feet});
   }
   animate(t:number,running:boolean,y:number,slide:boolean,speed=14,dt=.016,rollRemaining=0,boardRiding=false){
+    // Lobby animation is authored on Haris's own rig. Sampling directly keeps the
+    // ball socket and throw in sync even on low-refresh-rate phones.
+    if(!running&&this.lobbyTracks.size&&typeof this.w.lobbyClock==='number'&&this.w.mode==='menu'){
+      const frame=((this.w.lobbyClock%lobbyClip.duration)+lobbyClip.duration)%lobbyClip.duration/lobbyClip.duration*lobbyClip.frames,index=Math.floor(frame),fraction=frame-index;
+      this.gait=0;this.clipBlend=0;this.root.position.y=y;this.lastY=y;this.lastX=this.root.position.x;
+      this.body.scaling.setAll(1);this.body.rotationQuaternion=Quaternion.Identity();
+      this.body.position.set(...([0,1,2].map(i=>lobbyClip.body[index][i]+(lobbyClip.body[index+1][i]-lobbyClip.body[index][i])*fraction) as [number,number,number]));
+      this.body.position.y+=.04; // Keep the sandal soles just above the road.
+      for(const joint of this.nativeJoints){const track=this.lobbyTracks.get(joint.node.name);if(track){joint.node.rotationQuaternion??=Quaternion.Identity();Quaternion.SlerpToRef(track[index],track[index+1],fraction,joint.node.rotationQuaternion);}else joint.node.rotationQuaternion=joint.rest.clone();}
+      this.shadow.position.set(this.root.position.x,.019,this.root.position.z);this.shadow.visibility=.36;return;
+    }
     const blend=1-Math.exp(-dt*(slide?42:34));
     const gaitTarget=running?1:0,gaitBefore=this.gait,gaitDecay=Math.exp(-dt*12);
     this.gait=gaitTarget+(gaitBefore-gaitTarget)*gaitDecay;
@@ -118,8 +132,10 @@ export class ModelCharacter {
       // Haris starts in a T-pose; the supplied scans already have their arms down.
       // Retarget the rest-angle difference without changing the shared motion.
       if(joint.armsDown&&/arm/.test(joint.name)&&!/forearm/.test(joint.name))angles.roll+=joint.side*1.44;
-      if(this.w.mode==='intro'&&this.w.introProgress<.50&&this.source==='pakistani_boy.glb'&&joint.name.includes('right')){
-        if(/forearm/.test(joint.name))angles.pitch=-1.7;else if(/arm/.test(joint.name))angles.pitch=-.65;
+      if(typeof this.w.lobbyClock==='number'&&(this.w.mode==='menu'||this.w.mode==='intro')&&pose==='idle'){
+        const action=this.w.mode==='intro'?this.w.openingElapsed-this.w.openingDelay:-Infinity;
+        const opening=openingJoint(joint.name,this.w.lobbyClock??t,action,this.police);
+        const amount=1-escapeBlend(action);angles.pitch+=opening.pitch*amount;angles.yaw+=opening.yaw*amount;
       }
       // Recompute hinges in the current parent frame. Lowering a T-pose arm
       // rotates its elbow's bind-frame hinge; a cached axis twists the forearm.
@@ -154,6 +170,21 @@ export class ModelCharacter {
     const flightLift=authored?sprintClip.clearance[clipIndex]+(sprintClip.clearance[clipIndex+1]-sprintClip.clearance[clipIndex])*clipFraction:sprintLift(cycle);
     this.body.position.y+=this.groundOffset+(pose==='run'?flightLift*this.gait:0)-this.landing*.045;
     this.shadow.position.x=this.root.position.x;this.shadow.position.z=this.root.position.z;const floor=this.police?0:(this.w.groundHeight??0),altitude=Math.max(0,y-floor);this.shadow.position.y=floor+.019;this.shadow.visibility=Math.max(.045,.36/(1+altitude*.45));this.shadow.scaling.set(1+altitude*.025,.7+altitude*.018,1);
-    if(this.snack){this.snack.setEnabled(this.w.mode==='intro'&&this.w.introProgress<.50);if(this.w.mode==='intro'){const hand=this.nativeJoints.find(j=>/right.*hand/.test(j.name)&&!/(index|thumb|middle|ring|pinky)/.test(j.name));if(hand){hand.node.computeWorldMatrix(true);this.snack.position.copyFrom(hand.node.getAbsolutePosition());this.snack.position.y+=.08;}}}
+  }
+  /** Restore the photographed run frame before a cinematic hands back control. */
+  restoreCinematicPose(pose:{phase:number;rootPosition:number[];rootRotation:number[];nodes:{name:string;position:number[];rotation:number[];quaternion:boolean;scaling:number[]}[]}){
+    this.phase=pose.phase;this.gait=1;this.clipBlend=1;this.landing=0;this.lastY=0;this.lastX=pose.rootPosition[0];
+    this.root.position.copyFromFloats(...pose.rootPosition as [number,number,number]);this.root.rotation.copyFromFloats(...pose.rootRotation as [number,number,number]);
+    const nodes=new Map([this.body,...this.body.getChildTransformNodes(false)].map(n=>[n.name,n]));
+    for(const value of pose.nodes){const node=nodes.get(value.name);if(!node)continue;node.position.copyFromFloats(...value.position as [number,number,number]);node.scaling.copyFromFloats(...value.scaling as [number,number,number]);if(value.quaternion)node.rotationQuaternion=Quaternion.FromArray(value.rotation);else{node.rotationQuaternion=null;node.rotation.copyFromFloats(...value.rotation as [number,number,number]);}}
+  }
+  /** A palm socket on the actual rig, including its normalized scale and current pose. */
+  handPoint(side:'left'|'right'='right'){
+    const hand=this.nativeJoints.find(j=>j.name.includes(side)&&/hand/.test(j.name)&&!/(index|thumb|middle|ring|pinky|end)/.test(j.name));
+    if(!hand)return this.root.position.add(new Vector3(0,1.7,0));
+    hand.node.computeWorldMatrix(true);const point=hand.node.getAbsolutePosition().clone();
+    const forearm=this.nativeJoints.find(j=>j.name.includes(side)&&/forearm/.test(j.name));
+    if(forearm){forearm.node.computeWorldMatrix(true);point.addInPlace(point.subtract(forearm.node.getAbsolutePosition()).normalize().scale(.085));}
+    return point;
   }
 }

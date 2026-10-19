@@ -1,6 +1,6 @@
 import {readFileSync,statSync,readdirSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import {RUNTIME_MODELS} from '../src/asset-manifest.mjs';
+import {RUNTIME_MODELS,RUNTIME_MEDIA} from '../src/asset-manifest.mjs';
 assert.ok(statSync('dist/index.html').size>0);
 for(const file of RUNTIME_MODELS){
  const source=readFileSync(`public/${file}`),built=readFileSync(`dist/${file}`);
@@ -10,10 +10,14 @@ for(const file of RUNTIME_MODELS){
 assert.ok(!readdirSync('dist').some(file=>/\.(zip|mp4)$/i.test(file)),'Source archives or reference video leaked into release');
 console.log(`Release assets verified: ${RUNTIME_MODELS.length} runtime models; archives and reference footage excluded.`);
 
+for(const file of RUNTIME_MEDIA)assert.ok(readFileSync('public/'+file).equals(readFileSync('dist/'+file)),'Approved cinematic missing or changed: '+file);
+const allowedMedia=new Set(RUNTIME_MEDIA.map(file=>'/'+file));
 const manifest=JSON.parse(readFileSync('dist/manifest.webmanifest','utf8')),pwa=JSON.parse(readFileSync('dist/pwa-assets.json','utf8'));
 for(const icon of manifest.icons)assert.ok(statSync('dist'+icon.src).size>0,'Missing install icon: '+icon.src);
 assert.ok(readFileSync('dist/favicon.ico').equals(readFileSync('public/favicon.ico')),'Favicon missing or altered');
-for(const path of [...pwa.shell,...pwa.game]){assert.ok(!/\.(zip|mp4)$|\.env|player.saves|neon/i.test(path),'Private or source-only URL in offline pack');assert.ok(statSync('dist'+(path==='/'?'/index.html':path)).size>0,'Offline asset missing: '+path);}
+// Vite's arbitrary content hash can contain words such as nEoN. Inspect the
+// source name, retaining the privacy check for actual Neon/private assets.
+for(const path of [...pwa.shell,...pwa.game]){const sourcePath=path.startsWith('/assets/')?path.replace(/-[\w-]{8}(?=\.[^/]+$)/,''):path;assert.ok(allowedMedia.has(path)||!/\.(zip|mp4)$|\.env|player.saves|neon/i.test(sourcePath),'Private or source-only URL in offline pack: '+path);assert.ok(statSync('dist'+(path==='/'?'/index.html':path)).size>0,'Offline asset missing: '+path);}
 const worker=readFileSync('dist/sw.js','utf8');assert.ok(!worker.includes('__PWA_CONFIG__')&&worker.includes(pwa.version),'Worker build configuration is missing');
 console.log('PWA release verified: manifest, branded icons, worker and complete public asset list.');
 

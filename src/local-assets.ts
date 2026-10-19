@@ -1,3 +1,4 @@
+import {VEHICLE_VARIANTS} from './vehicle-choice.mjs';
 import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { vehicleFit } from './vehicle-scale.mjs';
@@ -5,10 +6,10 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { KarachiWorld } from './world';
 import { environmentAt } from './routes.mjs';
 
-import { STREET_FILES as files } from './asset-manifest.mjs';
+import { STREET_FILES as files, STREET_ASSETS } from './asset-manifest.mjs';
 /** Share geometry and textures across traffic; match collision dimensions to each model. */
 export class LocalAssets {
-  ready:Promise<void>; private templates:TransformNode[]=[]; private serial=0;
+  ready:Promise<void>; private templates:TransformNode[]=[];
   private stalls:{root:TransformNode;offset:number}[]=[];
   private openingStall:TransformNode|null=null;
   constructor(private world:KarachiWorld){this.ready=this.load();}
@@ -31,26 +32,28 @@ export class LocalAssets {
       console.info(`[Karachi Run] Loaded street asset: ${files[i]}`);
       const root=new TransformNode(files[i],this.world.scene);
       for(const mesh of result.meshes)if(!mesh.parent)mesh.parent=root;
+      const asset=STREET_ASSETS[i];root.rotation.y=asset.yaw;
       const bounds=root.getHierarchyBoundingVectors(true),size=bounds.max.subtract(bounds.min);
-      const fit=i<4?vehicleFit(size,i===0?'bus':i===1?'truck':'rickshaw'):null;const scale=fit?.scale??3.6/Math.max(size.x,size.z);
+      const fit=asset.kind!=='stall'?vehicleFit(size,asset.kind):null;const scale=fit?.scale??3.6/Math.max(size.x,size.z);
       const normal=new TransformNode('normalized asset',this.world.scene);root.parent=normal;root.scaling.setAll(scale);root.position=new Vector3(-(bounds.max.x+bounds.min.x)*scale/2,-bounds.min.y*scale,-(bounds.max.z+bounds.min.z)*scale/2);
       // Keep model heading inside the pooled root, which resets on every spawn.
-      if(i<4){const heading=new TransformNode("front-facing vehicle",this.world.scene);heading.parent=normal;heading.rotation.y=Math.PI;root.parent=heading;}
+      if(asset.kind!=='stall'){const heading=new TransformNode("front-facing vehicle",this.world.scene);heading.parent=normal;heading.rotation.y=Math.PI;root.parent=heading;}
       for(const mesh of result.meshes)mesh.isPickable=false;
-      normal.metadata=fit;normal.setEnabled(false);this.templates.push(normal);
+      normal.metadata=fit?{...fit,assetIndex:i}:null;normal.setEnabled(false);this.templates.push(normal);
     }
     for(const chunk of this.world.chunks)for(const old of chunk.getChildren())if(old instanceof TransformNode&&old.name==="rickshaw"){const parked=this.vehicle("rickshaw");parked.parent=chunk;parked.position.copyFrom(old.position);parked.rotation.copyFrom(old.rotation);old.dispose();}
     for(let i=0;i<6;i++){const root=this.copy(4+i%2);root.position.x=i%2?7.6:-7.6;root.rotation.y=i%2?-.3:.3;root.setEnabled(false);this.stalls.push({root,offset:i*32});}
-    this.openingStall=this.copy(5);this.openingStall.position.set(-5.7,0,1.8);this.update(this.world.travel);
+    this.openingStall=this.copy(4);this.openingStall.position.set(-8.5,0,8.4);this.update(this.world.travel);
   }
   private fallback(i:number){
     const scene=this.world.scene,root=new TransformNode(`fallback street asset ${i}`,scene);
-    if(i<4){
-      const kind=i<2?'bus':'rickshaw',vehicle=this.world.vehicle(kind);vehicle.parent=root;
+    const asset=STREET_ASSETS[i];
+    if(asset.kind!=='stall'){
+      const kind=asset.kind==='rickshaw'?'rickshaw':'bus',vehicle=this.world.vehicle(kind);vehicle.parent=root;
       // Fit fallback geometry and collider from the same dimensions as imported traffic.
-      const bounds=vehicle.getHierarchyBoundingVectors(true),fit=vehicleFit(bounds.max.subtract(bounds.min),i===0?'bus':i===1?'truck':'rickshaw');
+      const bounds=vehicle.getHierarchyBoundingVectors(true),fit=vehicleFit(bounds.max.subtract(bounds.min),asset.kind);
       vehicle.scaling.setAll(fit.scale);vehicle.position.set(-(bounds.min.x+bounds.max.x)*fit.scale/2,-bounds.min.y*fit.scale,-(bounds.min.z+bounds.max.z)*fit.scale/2);
-      root.metadata=fit;
+      root.metadata={...fit,assetIndex:i};
     }else{
       this.world.box('fallback bazaar counter',2.6,1.2,1.25,0,.65,0,i===4?'#b8563c':'#d63e73',root);
       this.world.box('fallback bazaar canopy',3.5,.2,1.8,0,1.55,0,i===4?'#e5b74c':'#7bc5c2',root);
@@ -59,9 +62,9 @@ export class LocalAssets {
     }
     root.setEnabled(false);return root;
   }
-  private copy(i:number){const root=this.templates[i].clone('Karachi street asset',null)!;root.metadata=this.templates[i].metadata;root.setEnabled(true);return root;}
+  private copy(i:number){const root=this.templates[i].clone('Karachi street asset '+files[i],null)!;root.metadata=this.templates[i].metadata;root.setEnabled(true);return root;}
   rooftop(){return this.copy(1);}
-  vehicle(kind:'bus'|'rickshaw'){return this.copy(kind==='bus'?(this.serial++%3===2?1:0):2+this.serial++%2);}
+  vehicle(kind:'bus'|'rickshaw',assetIndex?:number){const choices=VEHICLE_VARIANTS[kind];return this.copy(assetIndex!==undefined&&choices.includes(assetIndex)?assetIndex:choices[Math.floor(Math.random()*choices.length)]);}
   private stallCanShow(travel:number,z:number){
     if(environmentAt(travel+z).kind==='street')return false;
     // Match the visible street chunks, including shop depth and the stall's footprint.
@@ -70,10 +73,10 @@ export class LocalAssets {
   }
   update(travel:number){
     const opening=this.openingStall;
-    if(opening)opening.setEnabled((this.world.mode==='menu'||this.world.mode==='intro')&&this.stallCanShow(travel,opening.position.z));
+    if(opening)opening.setEnabled(this.world.mode==='intro'&&this.world.openingElapsed-this.world.openingDelay>=.51);
     for(const stall of this.stalls){
       const z=((stall.offset-travel)%192+192)%192-20;
-      stall.root.position.z=z;stall.root.setEnabled(this.stallCanShow(travel,z));
+      stall.root.position.z=z;stall.root.setEnabled(this.world.mode!=='menu'&&this.world.mode!=='intro'&&this.stallCanShow(travel,z));
     }
   }
 }

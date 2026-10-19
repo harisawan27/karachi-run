@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {playTruckHorn} from '../src/vehicle-audio.mjs';
+function audio(){const oscillators=[],gains=[],nodes=[];const param=()=>({value:0,events:[],setValueAtTime(value,at){this.events.push({kind:'set',value,at});},linearRampToValueAtTime(value,at){this.events.push({kind:'linear',value,at});},exponentialRampToValueAtTime(value,at){this.events.push({kind:'release',value,at});}});const node=()=>{const n={connected:false,disconnected:false,connect(){this.connected=true;},disconnect(){this.disconnected=true;}};nodes.push(n);return n;};const context={currentTime:10,createPeriodicWave(real,imaginary){assert.ok(imaginary[1]>imaginary[2]&&imaginary[2]>imaginary[3]);return {};},createBiquadFilter(){return Object.assign(node(),{frequency:param(),Q:param()});},createStereoPanner(){return Object.assign(node(),{pan:param()});},createGain(){const n=Object.assign(node(),{gain:param()});gains.push(n);return n;},createOscillator(){const n=Object.assign(node(),{frequency:param(),setPeriodicWave(){},start(at){this.startAt=at;},stop(at){this.stopAt=at;}});oscillators.push(n);return n;}};return {context,output:node(),oscillators,gains,nodes};}
+test('truck horn has two clear sustained calls without the previous downward pitch sweep',()=>{
+ const a=audio();playTruckHorn(a.context,a.output,{pan:-.6});assert.equal(a.oscillators.length,4);const first=a.oscillators.filter(n=>n.startAt===10),second=a.oscillators.filter(n=>n.startAt>10);assert.equal(first.length,2);assert.equal(second.length,2);assert.ok(second[0].stopAt-second[0].startAt>first[0].stopAt-first[0].startAt);
+ for(const n of a.oscillators){const [attack,held]=n.frequency.events;assert.ok(held.value>=300&&held.value<=500);assert.ok(Math.abs(attack.value/held.value-1)<.03);}
+ for(const n of a.gains){const hold=n.gain.events.find(e=>e.kind==='set'&&e.value>0),attack=n.gain.events.find(e=>e.kind==='linear');assert.ok(hold.at-attack.at>.09,'Horn must hold its note rather than decay immediately');}
+ for(const n of a.oscillators)n.onended();assert.ok(a.nodes.filter(n=>n!==a.output).every(n=>n.disconnected));
+});

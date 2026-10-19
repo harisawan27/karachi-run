@@ -1,0 +1,8 @@
+Pakistani Truck Models — aayanalidev90
+Source: https://sketchfab.com/3d-models/pakistani-truck-models-329fed4a5f5f4cf4a49614090a4f144b
+Author: https://sketchfab.com/aayanalidev90
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+Adapted for Karachi Run: simplified geometry, consolidated duplicate texture coordinates,
+1024px WebP textures, heading correction and proportional game-scale normalization.
+The source asset's embedded attribution is retained in the runtime GLB.

@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
-import { cpSync } from 'node:fs';
-import { RUNTIME_MODELS } from './src/asset-manifest.mjs';
+import { cpSync, mkdirSync } from 'node:fs';
+import { RUNTIME_MODELS, RUNTIME_MEDIA } from './src/asset-manifest.mjs';
 import { writeServiceWorker } from './scripts/build-pwa.mjs';
 
 export default defineConfig(({ mode }) => {
@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
       name: 'copy-game-assets',
       closeBundle() {
         for (const file of RUNTIME_MODELS) cpSync(`public/${file}`, `dist/${file}`);
+        for(const file of RUNTIME_MEDIA){mkdirSync('dist/'+file.slice(0,file.lastIndexOf('/')),{recursive:true});cpSync('public/'+file,'dist/'+file);}
         for (const folder of ['characters', 'models', 'branding', 'licenses']) cpSync(`public/${folder}`, `dist/${folder}`, { recursive: true });
         for (const file of ['manifest.webmanifest','favicon.ico']) cpSync('public/'+file,'dist/'+file);
         writeServiceWorker('dist');

@@ -14,6 +14,10 @@ export function baseMultiplier(save){return Math.min(MAX_MULTIPLIER,1+integer(sa
 export function missionReward(set){return Math.min(400,120+integer(set)*10);}
 export const POT_REWARDS=[{coins:500,boards:2,tickets:0,name:'Street Cruiser Pack'},{coins:350,boards:0,tickets:2,name:'Wapsi Pack'},{coins:800,boards:1,tickets:0,name:'Karachi Gold Pack'}];
 export function potReward(day,identity='guest'){let sum=0;for(const c of day+identity)sum=(sum+c.charCodeAt(0))%3;return {...POT_REWARDS[sum]};}
+const rewardDays=value=>[...new Set((Array.isArray(value)?value:[]).filter(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d))))].sort();
+export function completedMissionMask(save){return missionSet(save.progression.set).reduce((mask,m,i)=>mask|(save.progression.counts[i]>=m.target?1<<i:0),0);}
+export function progressionHasNotice(save){const p=save.progression,seen=p.seen?.set===p.set?p.seen.mask:0;return missionReady(save)||dailyReady(save)||Boolean(completedMissionMask(save)&~seen);}
+export function markMissionsSeen(save){const mask=completedMissionMask(save),p=save.progression;if(p.seen?.set===p.set&&p.seen.mask===mask)return save;return {...save,progression:{...p,seen:{set:p.set,mask}}};}
 export function normalizeProgression(value,legacy={},now=Date.now()){
  const p=value&&typeof value==='object'?value:null;
  const set=Math.min(9999,p?integer(p.set):Math.floor(integer(legacy.missionIndex)/3));
@@ -22,19 +26,26 @@ export function normalizeProgression(value,legacy={},now=Date.now()){
  const today=pakistanDay(now),d=p?.daily;
  const validDay=typeof d?.day==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d.day)&&Number.isFinite(Date.parse(d.day));
  const day=validDay?d.day:today;
- return {set,counts,daily:{day,mask:Math.min(127,integer(d?.mask)),claimed:d?.claimed===true},lastReward:typeof p?.lastReward==='string'?p.lastReward.slice(0,60):''};
+ const claimedDaily=rewardDays(p?.claimedDaily);if(d?.claimed===true&&!claimedDaily.includes(day))claimedDaily.push(day);
+ const pendingDaily=rewardDays(p?.pendingDaily).filter(day=>!claimedDaily.includes(day));
+ return {set,counts,pendingDaily,claimedDaily,seen:{set:integer(p?.seen?.set),mask:Math.min(7,integer(p?.seen?.mask))},daily:{day,mask:Math.min(127,integer(d?.mask)),claimed:d?.claimed===true||claimedDaily.includes(day)},lastReward:typeof p?.lastReward==='string'?p.lastReward.slice(0,60):''};
 }
 export function withCurrentDay(save,now=Date.now()){
  const day=pakistanDay(now),p=save.progression;
- return p.daily.day===day?save:{...save,progression:{...p,daily:{day,mask:0,claimed:false}}};
+ if(p.daily.day===day)return save;
+ const pendingDaily=rewardDays([...(p.pendingDaily||[]),...(p.daily.mask===127&&!p.daily.claimed?[p.daily.day]:[])]).filter(d=>!(p.claimedDaily||[]).includes(d));
+ return {...save,progression:{...p,pendingDaily,daily:{day,mask:0,claimed:false}}};
 }
 export function mergeProgression(a,b){
  const advanced=a.set>b.set?a:b,counts=a.set===b.set?a.counts.map((n,i)=>Math.max(n,b.counts[i])):[...advanced.counts];
  const daily=a.daily.day>b.daily.day?a.daily:b.daily.day>a.daily.day?b.daily:{day:a.daily.day,mask:a.daily.mask|b.daily.mask,claimed:a.daily.claimed||b.daily.claimed};
- return {...advanced,counts,daily:{...daily}};
+ const claimedDaily=rewardDays([...(a.claimedDaily||[]),...(b.claimedDaily||[]),...(a.daily.claimed?[a.daily.day]:[]),...(b.daily.claimed?[b.daily.day]:[])]);
+ const pendingDaily=rewardDays([...(a.pendingDaily||[]),...(b.pendingDaily||[]),...([a.daily,b.daily].filter(d=>d.day!==daily.day&&d.mask===127&&!d.claimed).map(d=>d.day))]).filter(day=>day!==daily.day&&!claimedDaily.includes(day));
+ const seen={set:advanced.set,mask:(a.seen?.set===advanced.set?a.seen.mask:0)|(b.seen?.set===advanced.set?b.seen.mask:0)};
+ return {...advanced,counts,pendingDaily,claimedDaily,seen,daily:{...daily,claimed:daily.claimed||claimedDaily.includes(daily.day)}};
 }
 export function missionReady(save){return missionSet(save.progression.set).every((m,i)=>save.progression.counts[i]>=m.target);}
-export function dailyReady(save,now=Date.now()){const d=save.progression.daily;return d.day===pakistanDay(now)&&d.mask===127&&!d.claimed;}
+export function dailyReady(save,now=Date.now()){const d=save.progression.daily;return Boolean(save.progression.pendingDaily?.length)||d.day===pakistanDay(now)&&d.mask===127&&!d.claimed;}
 export function advanceProgression(save,type,amount){
  if(!Number.isFinite(amount)||amount<=0)return save;let changed=false;const p=save.progression;
  const counts=missionSet(p.set).map((m,i)=>{const n=m.type===type?Math.min(m.target,p.counts[i]+amount):p.counts[i];if(n!==p.counts[i])changed=true;return n;});
@@ -52,7 +63,7 @@ export function claimLocalReward(save,kind,now=Date.now(),identity='guest'){
   return {save:next,reward:{coins,boards:0,tickets:0,name:baseMultiplier(next)>baseMultiplier(save)?'Multiplier level up!':'Mission set complete!'},key:`mission:${p.set}`};
  }
  if(kind==='daily'&&dailyReady(save,now)){
-  const reward=potReward(p.daily.day,identity);return {save:{...save,coins:save.coins+reward.coins,cruiserCharges:save.cruiserCharges+reward.boards,wapsiTickets:save.wapsiTickets+reward.tickets,progression:{...p,daily:{...p.daily,claimed:true},lastReward:`daily:${p.daily.day}`}},reward,key:`daily:${p.daily.day}`};
+  const day=p.pendingDaily?.[0]??p.daily.day,reward=potReward(day,identity);return {save:{...save,coins:save.coins+reward.coins,cruiserCharges:save.cruiserCharges+reward.boards,wapsiTickets:save.wapsiTickets+reward.tickets,progression:{...p,pendingDaily:(p.pendingDaily||[]).filter(d=>d!==day),claimedDaily:rewardDays([...(p.claimedDaily||[]),day]),daily:{...p.daily,claimed:p.daily.day===day?true:p.daily.claimed},lastReward:`daily:${day}`}},reward,key:`daily:${day}`};
  }
  return null;
 }

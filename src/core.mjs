@@ -33,7 +33,7 @@ export function stepCoinAttraction(current, anchor, runner, dt, magnetActive) {
   const zPull=anchor.z>0&&anchor.z<22?pull:0;
   return {x:approach(current.x,runner.x,pull),y:approach(current.y,runner.y,pull),z:approach(current.z,0,zPull)};
 }
-export const INITIAL_SAVE = { version: 8, coins: 0, wapsiTickets: 0, cruiserCharges: 5, best: 0, totalScore: 0, runs: 0, muted: false, musicMuted: false, voiceMuted: false, lowGraphics: false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], powerLevels: { magnet: 0, boost: 0, chai: 0, biryani: 0, shoes: 0 }, missionIndex: 0, missionProgress: 0, progression:normalizeProgression(null) };
+export const INITIAL_SAVE = { version: 8, coins: 0, wapsiTickets: 0, cruiserCharges: 5, best: 0, totalScore: 0, runs: 0, muted: false, musicMuted: false, voiceMuted: false, lowGraphics: false, touchAssist:false, selectedCharacter: 'pakistani_boy.glb', unlockedCharacters: ['pakistani_boy.glb'], powerLevels: { magnet: 0, boost: 0, chai: 0, biryani: 0, shoes: 0 }, missionIndex: 0, missionProgress: 0, progression:normalizeProgression(null) };
 export const WAPSI_TICKET_PRICE = 90;
 export const WAPSI_TICKET_PACK = { count: 5, price: 350 };
 export const CRUISER_CHARGE_PRICE = 90;
@@ -48,7 +48,7 @@ export function parseSave(raw) {
     const selectedCharacter = unlockedCharacters.includes(d.selectedCharacter) ? d.selectedCharacter : 'pakistani_boy.glb';
     const energies = d.energies && typeof d.energies === 'object' ? d.energies : {};
     const levels = d.powerLevels && typeof d.powerLevels === 'object' ? d.powerLevels : Object.fromEntries(['magnet','boost','chai','biryani','shoes'].map(k=>[k,energies[k]??0]));
-    return { version: 8, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), cruiserCharges: d.cruiserCharges === undefined ? 5 : safeInt(d.cruiserCharges), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, musicMuted: d.musicMuted === true, voiceMuted: d.voiceMuted === true, lowGraphics: d.lowGraphics === true, selectedCharacter, unlockedCharacters, powerLevels: { magnet: Math.min(5,safeInt(levels.magnet)), boost: Math.min(5,safeInt(levels.boost)), chai: Math.min(5,safeInt(levels.chai)), biryani: Math.min(5,safeInt(levels.biryani)), shoes: Math.min(5,safeInt(levels.shoes)) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress), progression:normalizeProgression(d.progression,d) };
+    return { version: 8, coins: safeInt(d.coins), wapsiTickets: safeInt(d.wapsiTickets), cruiserCharges: d.cruiserCharges === undefined ? 5 : safeInt(d.cruiserCharges), best: safeInt(d.best), totalScore: safeInt(d.totalScore), runs: safeInt(d.runs), muted: d.muted === true, musicMuted: d.musicMuted === true, voiceMuted: d.voiceMuted === true, lowGraphics: d.lowGraphics === true, touchAssist:d.touchAssist===true, selectedCharacter, unlockedCharacters, powerLevels: { magnet: Math.min(5,safeInt(levels.magnet)), boost: Math.min(5,safeInt(levels.boost)), chai: Math.min(5,safeInt(levels.chai)), biryani: Math.min(5,safeInt(levels.biryani)), shoes: Math.min(5,safeInt(levels.shoes)) }, missionIndex: safeInt(d.missionIndex), missionProgress: safeInt(d.missionProgress), progression:normalizeProgression(d.progression,d) };
   } catch { return {...INITIAL_SAVE,progression:normalizeProgression(null)}; }
 }
 export function mergePlayerSaves(cloudValue, guestValue) {
