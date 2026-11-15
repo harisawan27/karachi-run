@@ -7,7 +7,6 @@ import {createRequire} from 'node:module';
 import ts from 'typescript';
 import {NullEngine} from '@babylonjs/core/Engines/nullEngine.js';
 import {Scene} from '@babylonjs/core/scene.js';
-import {SceneLoader,ImportMeshAsync} from '@babylonjs/core/Loading/sceneLoader.js';
 import '@babylonjs/loaders/glTF/index.js';
 import {collides} from '../src/core.mjs';
 import {Vector3} from '@babylonjs/core/Maths/math.vector.js';
@@ -18,10 +17,10 @@ code=code.replace(/(from\s*|import\s*)['"]([^'"]+)['"]/g,(_,prefix,source)=>pref
 const {LocalAssets}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
 function geometry(bytes){const len=bytes.readUInt32LE(12),j=JSON.parse(bytes.subarray(20,20+len));delete j.materials;delete j.textures;delete j.images;delete j.extensionsRequired;delete j.extensionsUsed;for(const m of j.meshes)for(const p of m.primitives)delete p.material;const json=Buffer.from(JSON.stringify(j)),padded=Buffer.concat([json,Buffer.alloc((4-json.length%4)%4,32)]),tail=bytes.subarray(20+len),out=Buffer.alloc(20+padded.length+tail.length);bytes.copy(out,0,0,20);out.writeUInt32LE(out.length,8);out.writeUInt32LE(padded.length,12);padded.copy(out,20);tail.copy(out,20+padded.length);return out;}
 test('real traffic imports include all three large vehicles with grounded, proportional colliders',async()=>{
- const engine=new NullEngine(),scene=new Scene(engine),originalLoader=SceneLoader.ImportMeshAsync,document=globalThis.document,window=globalThis.window,loaded=[];
+ const engine=new NullEngine(),scene=new Scene(engine),originalFetch=globalThis.fetch,document=globalThis.document,loaded=[];
  try{
-  globalThis.document={querySelector:()=>null};globalThis.window={setTimeout:globalThis.setTimeout};
-  SceneLoader.ImportMeshAsync=async(_names,_root,file,s)=>{loaded.push(file);return ImportMeshAsync(geometry(fs.readFileSync('public/'+file)),s,{pluginExtension:'.glb'});};
+  globalThis.document={querySelector:()=>null};
+  globalThis.fetch=async url=>{const file=url.slice(1);loaded.push(file);return new Response(geometry(fs.readFileSync('public/'+file)));};
   const assets=new LocalAssets({scene,chunks:[],travel:0,mode:'menu',vehicle(){throw Error('Imported traffic unexpectedly used a fallback');}});await assets.ready;
   assert.deepEqual(loaded,STREET_FILES);
   const traffic=Array.from({length:12},(_,i)=>assets.vehicle('bus',[0,1,6][i%3])),names=new Set(traffic.map(v=>v.name));
@@ -33,5 +32,5 @@ test('real traffic imports include all three large vehicles with grounded, propo
   assert.ok(truck.getChildMeshes().reduce((n,m)=>n+m.getTotalIndices()/3,0)<30000,'keep mobile traffic geometry bounded');
   assert.ok(assets.rooftop().name.endsWith('colorful_decorated_truck.glb'),'keep the approved connected roof vehicle');
   assert.ok(fs.readFileSync('public/licenses/pakistani-truck.txt','utf8').includes('aayanalidev90'));
- }finally{SceneLoader.ImportMeshAsync=originalLoader;globalThis.document=document;globalThis.window=window;engine.dispose();}
+ }finally{globalThis.fetch=originalFetch;globalThis.document=document;engine.dispose();}
 });

@@ -1,3 +1,4 @@
+import {resizeGameCanvas} from './canvas-resolution';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -26,7 +27,7 @@ export class CharacterPreview {
 
   constructor(private canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas, true, { antialias: true, stencil: false, preserveDrawingBuffer: true, powerPreference: 'low-power' });
-    this.engine.setHardwareScalingLevel(Math.max(1.5, window.devicePixelRatio / 1.5));
+    this.resize();
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(.035, .18, .16, 1);
     this.scene.ambientColor = new Color3(.18, .2, .17);
@@ -64,7 +65,7 @@ export class CharacterPreview {
     window.addEventListener('resize', this.resize);
   }
 
-  private resize = () => this.engine.resize();
+  private resize = () => resizeGameCanvas(this.engine,this.canvas,false,true);
 
   private resetCamera() {
     this.camera.alpha = this.cameraHome.alpha;

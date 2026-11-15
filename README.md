@@ -6,6 +6,10 @@ Karachi Run is an independent project. It uses familiar three-lane endless-runne
 
 > **Project status:** playable browser prototype / beta foundation. Runs, coins, settings, missions, character selection, the store, Google account sign-in, and per-account cloud saves are implemented. Neon Auth, the Data API, and the save-table security migration are connected; New deployments must configure their public service URLs and trusted domains in Neon. An installable PWA and optional offline game download are implemented. The project does not currently provide online leaderboards, real-money purchases, advertising, or a published Android/iOS store app. See [LAUNCH-PLAN.md](LAUNCH-PLAN.md) for the current release gates.
 
+### Mobile visual quality
+
+High graphics uses up to 2× render resolution on phones and tablets, with a 1.8-megapixel budget for larger screens. Battery Saver costs fewer pixels. The 3D character preview uses its own smaller budget. Desktop keeps its previous graphics settings. Street model loading displays transfer progress where available and waits for decoding to finish; only a failed or stalled download (or invalid model) uses the simple substitute.
+
 ### Friends and family playtest — 0.2.0-beta.1
 
 This release is intended for browser playtesting on phones and laptops. Open [Karachi Run](https://karachi-run.vercel.app/); an existing PWA may offer its update from the lobby. Finish the current run before applying an update.

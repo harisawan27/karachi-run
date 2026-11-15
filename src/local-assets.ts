@@ -1,5 +1,6 @@
+import {downloadStreetModel} from './street-model-download.mjs';
 import {VEHICLE_VARIANTS} from './vehicle-choice.mjs';
-import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
+import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { vehicleFit } from './vehicle-scale.mjs';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
@@ -18,17 +19,22 @@ export class LocalAssets {
       const label=document.querySelector<HTMLParagraphElement>('#loading p');
       if(label)label.textContent=`LOADING KARACHI ASSETS · ${i+1}/${files.length} · ${files[i].replaceAll('_',' ').replace('.glb','').toUpperCase()}`;
       console.info(`[Karachi Run] Loading street asset ${i+1}/${files.length}: ${files[i]}`);
-      const pending=SceneLoader.ImportMeshAsync(null,'/',files[i],this.world.scene);
-      let timer:number|undefined;
       let result;
       try{
-        result=await Promise.race([pending,new Promise<never>((_,reject)=>{timer=window.setTimeout(()=>reject(new Error(`Timed out loading ${files[i]}`)),8000);})]);
+        const prefix=`LOADING KARACHI MODELS · ${i+1}/${files.length}`;
+        let progress=-10;
+        const bytes=await downloadStreetModel('/'+files[i],{onProgress:(percent:number)=>{
+          if(label&&percent-progress>=10){label.textContent=`${prefix} · ${percent}%`;progress=percent;}
+        }});
+        if(label)label.textContent=prefix+' · PREPARING DETAIL…';
+        // The runtime GLBs embed their textures. Let the importer finish even on
+        // slower devices instead of disposing a correct model after eight seconds.
+        result=await ImportMeshAsync(bytes,this.world.scene,{pluginExtension:'.glb',name:files[i]});
       }catch(error){
         console.warn('[Karachi Run] Using lightweight fallback for street asset:',files[i],error);
-        pending.then(late=>late.meshes.forEach(mesh=>mesh.dispose(false,true))).catch(()=>{});
         this.templates.push(this.fallback(i));
         continue;
-      }finally{if(timer!==undefined)clearTimeout(timer);}
+      }
       console.info(`[Karachi Run] Loaded street asset: ${files[i]}`);
       const root=new TransformNode(files[i],this.world.scene);
       for(const mesh of result.meshes)if(!mesh.parent)mesh.parent=root;

@@ -1,3 +1,4 @@
+import {resizeGameCanvas} from './canvas-resolution';
 import {Viewport} from '@babylonjs/core/Maths/math.viewport';
 import handoff from './cinematic-handoff.mjs';
 import {cinematicViewport} from './cinematic-framing.mjs';
@@ -53,7 +54,7 @@ export class KarachiWorld {
   constructor(public canvas:HTMLCanvasElement, runnerSource?:string) {
     this.engine=new Engine(canvas,true,{preserveDrawingBuffer:true,stencil:true,antialias:true,powerPreference:'high-performance'});
     this.engine.renderEvenInBackground=false;
-    this.engine.setHardwareScalingLevel(Math.max(1.4,window.devicePixelRatio / 1.3));
+    resizeGameCanvas(this.engine,this.canvas,this.low);
     this.scene=new Scene(this.engine); this.scene.clearColor=new Color4(.66,.81,.82,1);
     this.scene.fogMode=Scene.FOGMODE_LINEAR; this.scene.fogColor=new Color3(.71,.82,.79);this.scene.fogStart=65;this.scene.fogEnd=190;
     const hemi=new HemisphericLight('sky',new Vector3(-.1,1,-.3),this.scene);hemi.intensity=.8;hemi.groundColor=Color3.FromHexString('#6c807d');
@@ -62,7 +63,7 @@ export class KarachiWorld {
     this.camera=new FreeCamera('camera',new Vector3(-4.1,7,-14),this.scene);this.camera.setTarget(new Vector3(1,1.6,29));this.camera.minZ=.15;this.camera.maxZ=240;this.camera.fov=.85;
     this.signMat=this.makeSigns();
     this.ready=this.initializeWorld(runnerSource);
-    window.addEventListener('resize',()=>this.engine.resize());
+    window.addEventListener('resize',()=>resizeGameCanvas(this.engine,this.canvas,this.low));
     this.scene.skipPointerMovePicking=true;
   }
   private status(message:string){const label=document.querySelector<HTMLParagraphElement>('#loading p');if(label)label.textContent=message;}
@@ -383,7 +384,7 @@ export class KarachiWorld {
   }
   shake(intensity=.2,duration=.25){this.shakeIntensity=Math.max(this.shakeIntensity,intensity);this.shakeDuration=duration;}
   async setRunnerCharacter(source:string){const old=this.runner;const next=new Character(this,false,source);await next.ready;next.root.position.copyFrom(old.root.position);old.dispose();this.chaiJets=null;this.chaiJetFlames=[];this.runner=next;if(this.flightActive)this.setChaiActive(true);}
-  quality(low:boolean){this.low=low;this.engine.setHardwareScalingLevel(low?Math.max(1.7,devicePixelRatio):Math.max(1,devicePixelRatio/1.5));this.scene.fogEnd=low?145:190;}
+  quality(low:boolean){this.low=low;resizeGameCanvas(this.engine,this.canvas,low);this.scene.fogEnd=low?145:190;}
   update(dt:number,distanceDelta:number,playing:boolean,playerY:number,sliding:boolean) {
     if(this.chaiJets?.isEnabled()){const pulse=(this.flightStage==='landing'?.48:1)*(.88+Math.sin(this.time*25)*.12);for(const flame of this.chaiJetFlames)flame.scaling.y=pulse;this.chaiJets.rotation.y=Math.sin(this.time*3)*.035;}
     this.time+=dt;this.travel+=distanceDelta;if(this.mode==='menu'&&!document.hidden)this.lobbyClock+=dt;else if(this.mode==='intro')this.lobbyClock=this.openingClockStart+this.openingElapsed;
